@@ -20,7 +20,7 @@ export default async function EditMemberPage({ params }: PageProps<"/beheer/lede
     supabase.rpc("admin_list_members"),
     supabase.rpc("admin_list_profiles"),
   ]);
-  const member = ((data ?? []) as (ClubMember & { email: string | null })[]).find((m) => m.id === id);
+  const member = ((data ?? []) as (ClubMember & { email: string | null; birth_date: string | null })[]).find((m) => m.id === id);
   if (!member) notFound();
   const account = ((accounts ?? []) as { id: string; role: UserRole }[]).find(
     (a) => a.id === member.profile_id,
@@ -51,6 +51,14 @@ export default async function EditMemberPage({ params }: PageProps<"/beheer/lede
                 <option value="M">Man</option>
                 <option value="V">Vrouw</option>
               </select>
+            </Field>
+            <Field label="Geboortedatum">
+              <input
+                name="birth_date"
+                type="date"
+                defaultValue={member.birth_date ?? ""}
+                className={inputClass}
+              />
             </Field>
             <Field label="E-mailadres" hint="Hiermee wordt het lid aan een account gekoppeld.">
               <input name="email" type="email" defaultValue={member.email ?? ""} className={inputClass} />

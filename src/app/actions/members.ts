@@ -69,6 +69,7 @@ export async function updateClubMember(_: ActionState, formData: FormData): Prom
     p_tennis_singles_ranking: field("tennis_singles_ranking"),
     p_tennis_doubles_ranking: field("tennis_doubles_ranking"),
     p_padel_ranking: field("padel_ranking"),
+    p_birth_date: field("birth_date") || null,
   });
   if (error) return { error: error.message };
 

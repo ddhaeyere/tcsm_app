@@ -7,6 +7,8 @@ export interface ImportedMember {
   first_name: string;
   gender: Gender | null;
   email: string | null;
+  // yyyy-mm-dd
+  birth_date: string | null;
   tennis_singles_ranking: string | null;
   tennis_doubles_ranking: string | null;
   padel_ranking: string | null;
@@ -15,14 +17,15 @@ export interface ImportedMember {
 type Column = keyof ImportedMember;
 
 // Column headings we recognise, in lower case with single spaces. Columns
-// mapped to null are known but not imported (such as the birth date).
+// mapped to null are known but not imported.
 const HEADINGS: Record<string, Column | null> = {
   naam: "last_name",
   achternaam: "last_name",
   familienaam: "last_name",
   voornaam: "first_name",
   geslacht: "gender",
-  geboortedatum: null,
+  geboortedatum: "birth_date",
+  "geboorte datum": "birth_date",
   enkel: "tennis_singles_ranking",
   "klassement enkel": "tennis_singles_ranking",
   "tennis enkel": "tennis_singles_ranking",
@@ -73,6 +76,36 @@ function heading(cell: string): Column | null {
   return HEADINGS[cell.replace(/\s+/g, " ").trim().toLowerCase()] ?? null;
 }
 
+// Reads a birth date as "17/04/1980", "17-04-1980", "1980-04-17" or an Excel
+// day number (how Excel stores dates). Returns yyyy-mm-dd, or null.
+export function parseBirthDate(value: string): string | null {
+  const v = value.trim();
+  let year: number, month: number, day: number;
+  let m: RegExpMatchArray | null;
+  if ((m = v.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})$/))) {
+    [day, month, year] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  } else if ((m = v.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/))) {
+    [year, month, day] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  } else if (/^\d{4,5}(\.\d+)?$/.test(v)) {
+    // Excel counts days from 30 December 1899.
+    const date = new Date(Date.UTC(1899, 11, 30) + Math.floor(Number(v)) * 86400000);
+    [year, month, day] = [date.getUTCFullYear(), date.getUTCMonth() + 1, date.getUTCDate()];
+  } else {
+    return null;
+  }
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day ||
+    year < 1900 ||
+    date.getTime() > Date.now()
+  ) {
+    return null;
+  }
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
 // Reads a member list pasted from a spreadsheet or saved as CSV. The first
 // line holds the column headings; tabs, semicolons and commas all work.
 export function parseMemberList(text: string): { members: ImportedMember[]; problems: string[] } {
@@ -114,6 +147,7 @@ export function parseMemberRows(rows: string[][]): { members: ImportedMember[]; 
       first_name: "",
       gender: null,
       email: null,
+      birth_date: null,
       tennis_singles_ranking: null,
       tennis_doubles_ranking: null,
       padel_ranking: null,
@@ -127,6 +161,9 @@ export function parseMemberRows(rows: string[][]): { members: ImportedMember[]; 
       } else if (column === "email") {
         if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) member.email = value.toLowerCase();
         else problems.push(`Regel ${row}: "${value}" is geen geldig e-mailadres.`);
+      } else if (column === "birth_date") {
+        member.birth_date = parseBirthDate(value);
+        if (!member.birth_date) problems.push(`Regel ${row}: geboortedatum "${value}" niet herkend.`);
       } else if (column === "last_name" || column === "first_name") {
         member[column] = value;
       } else {
