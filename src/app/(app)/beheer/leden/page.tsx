@@ -15,11 +15,11 @@ export default async function MemberListPage() {
     supabase.rpc("admin_list_profiles"),
   ]);
   const members = (data ?? []) as (ClubMember & { email: string | null })[];
-  const admins = new Set(
-    ((accounts ?? []) as { id: string; role: UserRole }[])
-      .filter((a) => a.role !== "member")
-      .map((a) => a.id),
-  );
+  const adminAccounts = (
+    (accounts ?? []) as { id: string; full_name: string; email: string; role: UserRole; status: string }[]
+  ).filter((a) => a.role !== "member" && a.status === "approved");
+  const admins = new Set(adminAccounts.map((a) => a.id));
+  const linked = new Set(members.map((m) => m.profile_id).filter(Boolean));
 
   return (
     <>
@@ -36,6 +36,29 @@ export default async function MemberListPage() {
       >
         Leden importeren
       </Link>
+
+      <Card className="mb-4">
+        <h2 className="mb-1 font-semibold">Beheerders ({adminAccounts.length})</h2>
+        <p className="mb-2 text-sm text-stone-600">
+          Rollen pas je aan bij{" "}
+          <Link href="/beheer/accounts" className="text-club-700 underline">
+            Accounts
+          </Link>
+          .
+        </p>
+        <ul className="divide-y divide-stone-100">
+          {adminAccounts.map((a) => (
+            <li key={a.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2">
+              <span className="min-w-48 flex-1">
+                <span className="font-medium">{a.full_name}</span>
+                <span className="block text-xs text-stone-600">{a.email}</span>
+              </span>
+              {!linked.has(a.id) && <Badge tone="amber">niet in de ledenlijst</Badge>}
+              <Badge tone="club">beheerder</Badge>
+            </li>
+          ))}
+        </ul>
+      </Card>
 
       <Card>
         {members.length === 0 && (

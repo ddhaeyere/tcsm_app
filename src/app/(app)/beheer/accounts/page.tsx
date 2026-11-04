@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { updateAccount } from "@/app/actions/admin";
 import { ActionForm, SubmitButton } from "@/components/forms";
-import { Badge, Card, PageTitle, inputClass } from "@/components/ui";
+import { RoleSelect } from "@/components/role-select";
+import { Badge, Card, PageTitle } from "@/components/ui";
 import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import type { AccountStatus, UserRole } from "@/lib/types";
@@ -20,10 +21,7 @@ interface Account {
 
 // Organisers still exist in the database, but the club only uses two roles:
 // admins manage events and members, members register.
-const ROLE_LABELS: Partial<Record<UserRole, string>> = {
-  member: "Lid",
-  admin: "Beheerder",
-};
+const isAdmin = (role: UserRole) => role !== "member";
 
 export default async function AccountsPage() {
   const me = await requireAdmin();
@@ -32,7 +30,11 @@ export default async function AccountsPage() {
   const members = (data ?? []) as Account[];
 
   const pending = members.filter((m) => m.status === "pending");
-  const approved = members.filter((m) => m.status === "approved");
+  // Admins first, so it is clear at a glance who manages the app.
+  const approved = members
+    .filter((m) => m.status === "approved")
+    .sort((a, b) => Number(isAdmin(b.role)) - Number(isAdmin(a.role)));
+  const adminCount = approved.filter((m) => isAdmin(m.role)).length;
   const rejected = members.filter((m) => m.status === "rejected");
 
   return (
@@ -69,31 +71,28 @@ export default async function AccountsPage() {
       </Card>
 
       <Card className="mb-4">
-        <h2 className="mb-2 font-semibold">Goedgekeurd ({approved.length})</h2>
+        <h2 className="mb-2 font-semibold">
+          Goedgekeurd ({approved.length}, waarvan {adminCount} {adminCount === 1 ? "beheerder" : "beheerders"})
+        </h2>
         <ul className="divide-y divide-stone-100">
           {approved.map((m) => (
             <li key={m.id} className="flex flex-wrap items-center gap-2 py-2">
               <span className="min-w-48 flex-1">
-                <span className="font-medium">{m.full_name}</span>
+                <span className="font-medium">{m.full_name}</span>{" "}
+                {isAdmin(m.role) && <Badge tone="club">beheerder</Badge>}
                 <span className="block text-sm text-stone-600">{m.email}</span>
               </span>
               {m.id === me.id ? (
-                <Badge tone="green">{ROLE_LABELS[m.role] ?? "Organisator"} (jij)</Badge>
+                <Badge tone="green">jij</Badge>
               ) : (
                 <ActionForm action={updateAccount} className="flex flex-wrap items-center gap-2">
                   <input type="hidden" name="profile_id" value={m.id} />
-                  <select
-                    name="role"
-                    defaultValue={m.role}
-                    aria-label={`Rol van ${m.full_name}`}
-                    className={`${inputClass} mt-0 w-auto py-1.5 text-sm`}
-                  >
-                    {Object.entries(ROLE_LABELS).map(([value, label]) => (
-                      <option key={value} value={value}>
-                        {label}
-                      </option>
-                    ))}
-                  </select>
+                  <RoleSelect
+                    key={m.role}
+                    role={isAdmin(m.role) ? "admin" : "member"}
+                    label={`Rol van ${m.full_name}`}
+                    className="mt-0 w-auto py-1.5 text-sm"
+                  />
                   <SubmitButton variant="secondary">Rol opslaan</SubmitButton>
                   <SubmitButton
                     name="status"
