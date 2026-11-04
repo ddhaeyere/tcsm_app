@@ -1,9 +1,13 @@
 import { RegistrationForm, type CurrentChoice } from "@/components/registration-form";
+import {
+  RegistrationTable,
+  type TablePart,
+  type TableRegistration,
+} from "@/components/registration-table";
 import { Card } from "@/components/ui";
 import { isOrganiser } from "@/lib/auth";
 import { sportLabel } from "@/lib/format";
 import {
-  SPORTS,
   eaters,
   maxPlayers,
   offersSport,
@@ -73,90 +77,80 @@ export function RegisterCard({
   );
 }
 
-// Who plays each sport (with the reserve list) and who eats along.
-export function RegistrationLists({ event, me }: { event: ClubEvent; me: ClubMember | null }) {
-  const name = (r: Registration) => (
-    <span className={r.member_id === me?.id ? "font-semibold" : undefined}>
-      {r.member?.full_name ?? "Onbekend"}
-    </span>
-  );
+// Everyone registered, in one table. Organisers (manage) can change and
+// remove registrations from it.
+export function RegistrationOverview({
+  event,
+  me,
+  manage = false,
+  registeredByNames,
+}: {
+  event: ClubEvent;
+  me: ClubMember | null;
+  manage?: boolean;
+  // Account names by profile id, for "door ..." under the name.
+  registeredByNames?: Map<string, string>;
+}) {
+  const position = (list: Registration[]) => new Map(list.map((r, i) => [r.id, i + 1]));
+  const tennis = sportLists(event, "tennis");
+  const padel = sportLists(event, "padel");
+  const order = {
+    tennis: position([...tennis.players, ...tennis.reserves]),
+    padel: position([...padel.players, ...padel.reserves]),
+    eats: position(eaters(event)),
+  };
+
+  const rows: TableRegistration[] = event.registrations.map((r) => ({
+    id: r.id,
+    member_id: r.member_id,
+    full_name: r.member?.full_name ?? "Onbekend",
+    rankings: [
+      offersSport(event, "tennis") &&
+        [r.member?.tennis_singles_ranking, r.member?.tennis_doubles_ranking].some(Boolean) &&
+        `T ${[r.member?.tennis_singles_ranking, r.member?.tennis_doubles_ranking].map((x) => (x ? `${x}p` : "–")).join("/")}`,
+      offersSport(event, "padel") && rankingText(r.member, "padel") && `P ${rankingText(r.member, "padel")}`,
+    ].filter((x): x is string => !!x),
+    is_me: r.member_id === me?.id,
+    tennis: r.tennis,
+    padel: r.padel,
+    eats: r.eats,
+    order: {
+      tennis: order.tennis.get(r.id) ?? null,
+      padel: order.padel.get(r.id) ?? null,
+      eats: order.eats.get(r.id) ?? null,
+    },
+    reserve: {
+      tennis: reservePlace(event, "tennis", r.member_id),
+      padel: reservePlace(event, "padel", r.member_id),
+    },
+    registered_by_name:
+      manage && r.registered_by ? (registeredByNames?.get(r.registered_by) ?? null) : null,
+  }));
+
+  const sportCount = (sport: Sport, lists: { players: Registration[]; reserves: Registration[] }) => {
+    const max = maxPlayers(event, sport);
+    const count = max === null ? `${lists.players.length}` : `${lists.players.length}/${max}`;
+    return lists.reserves.length ? `${count} +${lists.reserves.length} res.` : count;
+  };
+  const parts: TablePart[] = [
+    ...(offersSport(event, "tennis")
+      ? [{ part: "tennis" as const, label: sportLabel("tennis"), count: sportCount("tennis", tennis) }]
+      : []),
+    ...(offersSport(event, "padel")
+      ? [{ part: "padel" as const, label: sportLabel("padel"), count: sportCount("padel", padel) }]
+      : []),
+    ...(event.catering
+      ? [{ part: "eats" as const, label: event.catering, count: `${eaters(event).length}` }]
+      : []),
+  ];
 
   return (
-    <div className="space-y-4">
-      {SPORTS.filter((sport) => offersSport(event, sport)).map((sport) => {
-        const { players, reserves } = sportLists(event, sport);
-        const max = maxPlayers(event, sport);
-        return (
-          <Card key={sport}>
-            <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <h2 className="text-lg font-semibold">{sportLabel(sport)}</h2>
-              <span className="text-sm text-stone-600">
-                {players.length}
-                {max !== null ? ` / ${max}` : ""} spelers
-                {reserves.length > 0 && ` · ${reserves.length} op de reservelijst`}
-              </span>
-            </div>
-            {players.length === 0 ? (
-              <p className="mt-3 text-sm text-stone-600">Nog niemand ingeschreven.</p>
-            ) : (
-              <ol className="mt-3 divide-y divide-stone-100 text-sm">
-                {players.map((r, i) => (
-                  <li key={r.id} className="flex gap-3 py-1.5">
-                    <span className="w-6 shrink-0 text-right text-stone-400">{i + 1}.</span>
-                    <span className="min-w-0 flex-1">
-                      {name(r)}
-                      <span className="block text-xs text-stone-500">
-                        {rankingText(r.member, sport) || "geen klassement"}
-                      </span>
-                    </span>
-                  </li>
-                ))}
-              </ol>
-            )}
-            {reserves.length > 0 && (
-              <>
-                <h3 className="mt-4 text-sm font-semibold text-amber-800">Reservelijst</h3>
-                <ol className="mt-1 divide-y divide-amber-100 rounded-lg bg-amber-50 px-2 text-sm">
-                  {reserves.map((r, i) => (
-                    <li key={r.id} className="flex gap-3 py-1.5">
-                      <span className="w-6 shrink-0 text-right text-amber-700">{i + 1}.</span>
-                      <span className="min-w-0 flex-1">
-                        {name(r)}
-                        <span className="block text-xs text-stone-500">
-                          {rankingText(r.member, sport) || "geen klassement"}
-                        </span>
-                      </span>
-                    </li>
-                  ))}
-                </ol>
-              </>
-            )}
-          </Card>
-        );
-      })}
-
-      {event.catering && (
-        <Card>
-          <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <h2 className="text-lg font-semibold">{event.catering}</h2>
-            <span className="text-sm text-stone-600">
-              {eaters(event).length} {eaters(event).length === 1 ? "eet" : "eten"} mee
-            </span>
-          </div>
-          {eaters(event).length === 0 ? (
-            <p className="mt-3 text-sm text-stone-600">Nog niemand eet mee.</p>
-          ) : (
-            <p className="mt-3 text-sm text-stone-800">
-              {eaters(event).map((r, i) => (
-                <span key={r.id}>
-                  {i > 0 && ", "}
-                  {name(r)}
-                </span>
-              ))}
-            </p>
-          )}
-        </Card>
-      )}
-    </div>
+    <Card>
+      <h2 className="mb-3 text-lg font-semibold">
+        Wie doet er mee?{" "}
+        <span className="font-normal text-stone-500">({event.registrations.length})</span>
+      </h2>
+      <RegistrationTable eventId={event.id} registrations={rows} parts={parts} manage={manage} />
+    </Card>
   );
 }

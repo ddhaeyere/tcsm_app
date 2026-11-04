@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { RegisterCard, RegistrationLists } from "@/components/event-registrations";
+import { RegisterCard, RegistrationOverview } from "@/components/event-registrations";
 import {
   getCurrentMember,
   isOrganiser,
@@ -101,7 +101,7 @@ export default async function EventPage({
 
       <div className="space-y-4">
         {canRegister && <RegisterCard event={event} profile={profile} me={me} members={members} />}
-        <RegistrationLists event={event} me={me} />
+        <RegistrationOverview event={event} me={me} />
       </div>
     </>
   );
