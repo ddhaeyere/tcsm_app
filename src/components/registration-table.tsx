@@ -1,55 +1,110 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition, type ReactNode } from "react";
+import { Fragment, useEffect, useRef, useState, useTransition, type ReactNode } from "react";
 import { adminDeleteRegistration, adminUpdateRegistration } from "@/app/actions/registrations";
 
 type Part = "tennis" | "padel" | "eats";
+type SortKey = "name" | Part;
 
-export interface ManagedRegistration {
+export interface TableRegistration {
   id: string;
   member_id: string;
   full_name: string;
+  // ["T 15p/30p", "P P300"], or empty.
+  rankings: string[];
+  is_me: boolean;
   tennis: boolean;
   padel: boolean;
   eats: boolean;
+  // Position in order of registration per part (1 is first), when registered.
+  order: { tennis: number | null; padel: number | null; eats: number | null };
   // Place on the reserve list, when there.
   reserve: { tennis: number | null; padel: number | null };
+  // Only filled in for organisers.
   registered_by_name: string | null;
 }
 
-// A table of all registrations for organisers. The pencil opens a dialog to
-// change the parts; the bin removes the registration. Both ask to confirm.
-export function ManageRegistrations({
+export interface TablePart {
+  part: Part;
+  label: string;
+  // "12/16", "8"
+  count: string;
+}
+
+// Everyone registered for an event in one table: sortable by name or per
+// part (in order of registration), with a search on name. Organisers also
+// get a pencil to change the parts and a bin to remove the registration;
+// both ask to confirm.
+export function RegistrationTable({
   eventId,
   registrations,
   parts,
+  manage = false,
 }: {
   eventId: string;
-  registrations: ManagedRegistration[];
-  // The parts this event offers, with their column labels.
-  parts: { part: Part; label: string }[];
+  registrations: TableRegistration[];
+  parts: TablePart[];
+  manage?: boolean;
 }) {
-  const [editing, setEditing] = useState<ManagedRegistration | null>(null);
-  const [deleting, setDeleting] = useState<ManagedRegistration | null>(null);
+  const [editing, setEditing] = useState<TableRegistration | null>(null);
+  const [deleting, setDeleting] = useState<TableRegistration | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
+  const [sort, setSort] = useState<{ key: SortKey; desc: boolean }>({ key: "name", desc: false });
 
-  const shown = registrations.filter((r) =>
-    r.full_name.toLowerCase().includes(filter.trim().toLowerCase()),
-  );
+  const query = filter.trim().toLowerCase();
+  const shown = registrations
+    .filter((r) => r.full_name.toLowerCase().includes(query))
+    .sort((a, b) => {
+      const byName = a.full_name.localeCompare(b.full_name, "nl");
+      if (sort.key === "name") return sort.desc ? -byName : byName;
+      // Registered for the part first, in order of registration; the rest
+      // after, by name. Descending only flips the registered ones.
+      const oa = a.order[sort.key];
+      const ob = b.order[sort.key];
+      if (oa === null || ob === null) return oa === ob ? byName : oa === null ? 1 : -1;
+      return sort.desc ? ob - oa : oa - ob;
+    });
+
+  const sortBy = (key: SortKey) =>
+    setSort((s) => (s.key === key ? { key, desc: !s.desc } : { key, desc: false }));
+
+  const header = (key: SortKey, label: ReactNode, sub?: string, align = "text-center") => {
+    const active = sort.key === key;
+    return (
+      <th
+        className={`py-2 font-medium ${key === "name" ? "pr-2 text-left" : `px-1 ${align}`}`}
+        aria-sort={active ? (sort.desc ? "descending" : "ascending") : "none"}
+      >
+        <button
+          type="button"
+          onClick={() => sortBy(key)}
+          className={`inline-flex items-center gap-0.5 rounded hover:text-club-700 ${
+            active ? "text-club-800" : ""
+          }`}
+        >
+          <span className="text-left">
+            {label}
+            {sub && <span className="block whitespace-nowrap text-[11px] font-normal text-stone-400">{sub}</span>}
+          </span>
+          <span aria-hidden className={`text-[10px] ${active ? "" : "text-stone-300"}`}>
+            {active ? (sort.desc ? "▼" : "▲") : "↕"}
+          </span>
+        </button>
+      </th>
+    );
+  };
 
   return (
     <div>
-      {registrations.length > 8 && (
-        <input
-          type="search"
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-          placeholder="Zoek op naam"
-          aria-label="Zoek op naam"
-          className="mb-3 block w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-base focus:border-club-600 focus:outline-none focus:ring-2 focus:ring-club-200"
-        />
-      )}
+      <input
+        type="search"
+        value={filter}
+        onChange={(e) => setFilter(e.target.value)}
+        placeholder="Zoek op naam"
+        aria-label="Zoek op naam"
+        className="mb-3 block w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-base focus:border-club-600 focus:outline-none focus:ring-2 focus:ring-club-200"
+      />
 
       {notice && (
         <p role="status" className="mb-3 rounded-lg bg-club-50 p-3 text-sm text-club-900">
@@ -63,24 +118,36 @@ export function ManageRegistrations({
         <div className="-mx-4 overflow-x-auto px-4">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-stone-200 text-left text-xs text-stone-500">
-                <th className="py-2 pr-2 font-medium">Naam</th>
+              <tr className="border-b border-stone-200 align-bottom text-xs text-stone-500">
+                {header("name", "Naam")}
                 {parts.map((p) => (
-                  <th key={p.part} className="px-1 py-2 text-center font-medium">
-                    {p.label}
-                  </th>
+                  <Fragment key={p.part}>{header(p.part, p.label, p.count)}</Fragment>
                 ))}
-                <th className="py-2 pl-2 text-right font-medium">
-                  <span className="sr-only">Acties</span>
-                </th>
+                {manage && (
+                  <th className="py-2 pl-2">
+                    <span className="sr-only">Acties</span>
+                  </th>
+                )}
               </tr>
             </thead>
             <tbody className="divide-y divide-stone-100">
               {shown.map((r) => (
-                <tr key={r.id}>
+                <tr key={r.id} className={r.is_me ? "bg-club-50" : undefined}>
                   <td className="py-2 pr-2">
-                    <span className="font-medium text-stone-900">{r.full_name}</span>
-                    {r.registered_by_name && (
+                    <span className={`text-stone-900 ${r.is_me ? "font-semibold" : "font-medium"}`}>
+                      {r.full_name}
+                    </span>
+                    {r.rankings.length > 0 && (
+                      <span className="block text-xs text-stone-500">
+                        {r.rankings.map((text, i) => (
+                          <span key={text} className="whitespace-nowrap">
+                            {i > 0 && " · "}
+                            {text}
+                          </span>
+                        ))}
+                      </span>
+                    )}
+                    {manage && r.registered_by_name && (
                       <span className="block text-xs text-stone-500">
                         door {r.registered_by_name}
                       </span>
@@ -91,29 +158,31 @@ export function ManageRegistrations({
                       <PartStatus registration={r} part={p.part} />
                     </td>
                   ))}
-                  <td className="py-2 pl-2">
-                    <div className="flex justify-end">
-                      <IconButton
-                        label={`Inschrijving van ${r.full_name} aanpassen`}
-                        onClick={() => {
-                          setNotice(null);
-                          setEditing(r);
-                        }}
-                      >
-                        <PencilIcon />
-                      </IconButton>
-                      <IconButton
-                        label={`Inschrijving van ${r.full_name} verwijderen`}
-                        danger
-                        onClick={() => {
-                          setNotice(null);
-                          setDeleting(r);
-                        }}
-                      >
-                        <BinIcon />
-                      </IconButton>
-                    </div>
-                  </td>
+                  {manage && (
+                    <td className="py-2 pl-2">
+                      <div className="flex flex-col items-end sm:flex-row sm:justify-end">
+                        <IconButton
+                          label={`Inschrijving van ${r.full_name} aanpassen`}
+                          onClick={() => {
+                            setNotice(null);
+                            setEditing(r);
+                          }}
+                        >
+                          <PencilIcon />
+                        </IconButton>
+                        <IconButton
+                          label={`Inschrijving van ${r.full_name} verwijderen`}
+                          danger
+                          onClick={() => {
+                            setNotice(null);
+                            setDeleting(r);
+                          }}
+                        >
+                          <BinIcon />
+                        </IconButton>
+                      </div>
+                    </td>
+                  )}
                 </tr>
               ))}
               {shown.length === 0 && (
@@ -153,12 +222,15 @@ export function ManageRegistrations({
   );
 }
 
-function PartStatus({ registration: r, part }: { registration: ManagedRegistration; part: Part }) {
+function PartStatus({ registration: r, part }: { registration: TableRegistration; part: Part }) {
   if (!r[part]) return <span className="text-stone-300" aria-label="nee">–</span>;
   const reserve = part === "eats" ? null : r.reserve[part];
   if (reserve !== null)
     return (
-      <span title={`Reservelijst, plaats ${reserve}`} className="inline-flex whitespace-nowrap rounded-full bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800">
+      <span
+        title={`Reservelijst, plaats ${reserve}`}
+        className="inline-flex whitespace-nowrap rounded-full bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800"
+      >
         res. {reserve}
       </span>
     );
@@ -212,8 +284,8 @@ function EditDialog({
   onClose,
 }: {
   eventId: string;
-  registration: ManagedRegistration;
-  parts: { part: Part; label: string }[];
+  registration: TableRegistration;
+  parts: TablePart[];
   onClose: (message?: string) => void;
 }) {
   const [choice, setChoice] = useState({ tennis: r.tennis, padel: r.padel, eats: r.eats });
@@ -344,7 +416,7 @@ function DeleteDialog({
   onClose,
 }: {
   eventId: string;
-  registration: ManagedRegistration;
+  registration: TableRegistration;
   onClose: (message?: string) => void;
 }) {
   const [error, setError] = useState<string | null>(null);
