@@ -32,7 +32,7 @@ export default async function ImportMembersPage() {
               name="file"
               type="file"
               accept=".xlsx,.csv,.txt,.tsv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-              className="mt-1 block text-sm"
+              className="mt-2 block w-full cursor-pointer rounded-lg border-2 border-dashed border-club-200 bg-club-50 p-3 text-sm text-stone-700 hover:border-club-600 file:mr-3 file:cursor-pointer file:rounded-lg file:border-0 file:bg-gold-400 file:px-4 file:py-2 file:font-semibold file:text-club-900 hover:file:brightness-95"
             />
           </Field>
           <Field
