@@ -19,8 +19,11 @@ export function isValidRanking(sport: Sport, ranking: string): boolean {
 }
 
 // Reads a ranking as written in the club's member list, e.g. "5 ptn *" or
-// "P50 *". Returns null when it is empty or not a known ranking.
+// "P50 *". A youth rating with its points in brackets, e.g. "13.3 (15 ptn)",
+// counts as those points. Returns null when it is empty or not a known ranking.
 export function parseRanking(sport: Sport, text: string): string | null {
+  const points = text.match(/\(([^)]*\bptn?\b[^)]*)\)/i);
+  if (points) text = points[1];
   const value = text.replace(/\*/g, "").replace(/\s*ptn?\.?\s*$/i, "").trim().toUpperCase();
   if (!value) return null;
   return RANKINGS[sport].find((r) => r.toUpperCase() === value) ?? null;

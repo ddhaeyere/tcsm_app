@@ -14,18 +14,23 @@ export interface ImportedMember {
 
 type Column = keyof ImportedMember;
 
-// Column headings we recognise, in lower case.
-const HEADINGS: Record<string, Column> = {
+// Column headings we recognise, in lower case with single spaces. Columns
+// mapped to null are known but not imported (such as the birth date).
+const HEADINGS: Record<string, Column | null> = {
   naam: "last_name",
   achternaam: "last_name",
   familienaam: "last_name",
   voornaam: "first_name",
   geslacht: "gender",
+  geboortedatum: null,
   enkel: "tennis_singles_ranking",
+  "klassement enkel": "tennis_singles_ranking",
   "tennis enkel": "tennis_singles_ranking",
   dubbel: "tennis_doubles_ranking",
+  "klassement dubbel": "tennis_doubles_ranking",
   "tennis dubbel": "tennis_doubles_ranking",
   padel: "padel_ranking",
+  "klassement padel": "padel_ranking",
   email: "email",
   "e-mail": "email",
   "e-mailadres": "email",
@@ -64,6 +69,10 @@ function readGender(value: string): Gender | null {
   return null;
 }
 
+function heading(cell: string): Column | null {
+  return HEADINGS[cell.replace(/\s+/g, " ").trim().toLowerCase()] ?? null;
+}
+
 // Reads a member list pasted from a spreadsheet or saved as CSV. The first
 // line holds the column headings; tabs, semicolons and commas all work.
 export function parseMemberList(text: string): { members: ImportedMember[]; problems: string[] } {
@@ -72,20 +81,34 @@ export function parseMemberList(text: string): { members: ImportedMember[]; prob
 
   const header = lines[0];
   const delimiter = header.includes("\t") ? "\t" : header.includes(";") ? ";" : ",";
-  const columns = splitLine(header, delimiter).map((h) => HEADINGS[h.toLowerCase()] ?? null);
+  return parseMemberRows(lines.map((line) => splitLine(line, delimiter)));
+}
 
-  const problems: string[] = [];
-  if (!columns.includes("last_name") || !columns.includes("first_name")) {
+// Reads a member list given as rows of cells, e.g. from an Excel file. The
+// heading row is the first row (within the first ten) that holds both
+// "Naam" and "Voornaam"; title rows above it are skipped.
+export function parseMemberRows(rows: string[][]): { members: ImportedMember[]; problems: string[] } {
+  // Keep each row's line number in the file for messages.
+  const filled = rows
+    .map((cells, i) => ({ cells, line: i + 1 }))
+    .filter(({ cells }) => cells.some((cell) => cell.trim() !== ""));
+  if (filled.length === 0) return { members: [], problems: ["De lijst is leeg."] };
+
+  const headerIndex = filled.slice(0, 10).findIndex(({ cells }) => {
+    const columns = cells.map(heading);
+    return columns.includes("last_name") && columns.includes("first_name");
+  });
+  if (headerIndex < 0) {
     return {
       members: [],
       problems: ['De eerste regel moet de kolomnamen bevatten, minstens "Naam" en "Voornaam".'],
     };
   }
+  const columns = filled[headerIndex].cells.map(heading);
 
+  const problems: string[] = [];
   const members: ImportedMember[] = [];
-  lines.slice(1).forEach((line, index) => {
-    const row = index + 2;
-    const cells = splitLine(line, delimiter);
+  filled.slice(headerIndex + 1).forEach(({ cells, line: row }) => {
     const member: ImportedMember = {
       last_name: "",
       first_name: "",
@@ -97,7 +120,7 @@ export function parseMemberList(text: string): { members: ImportedMember[]; prob
     };
 
     columns.forEach((column, i) => {
-      const value = cells[i] ?? "";
+      const value = (cells[i] ?? "").trim();
       if (!column || !value) return;
       if (column === "gender") {
         member.gender = readGender(value);

@@ -8,8 +8,8 @@ screen. Plan and decisions: [TCSM club app plan](https://claude.ai/code/artifact
 
 ## What it does (phase 1)
 
-- **Member list**: admins import the club's member list (pasted from Excel or
-  as a CSV file) with names, gender, email and rankings for tennis singles,
+- **Member list**: admins import the club's member list (as an Excel .xlsx
+  file, a CSV file or pasted from Excel) with names, gender, email and rankings for tennis singles,
   tennis doubles and padel. Registrations point to members of this list.
 - **Accounts**: members sign up with name, email and password. An account whose
   email is on the member list is approved at once and linked to that member;

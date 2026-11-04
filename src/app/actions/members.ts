@@ -4,21 +4,33 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { ActionState } from "@/components/forms";
 import { requireAdmin } from "@/lib/auth";
-import { parseMemberList } from "@/lib/member-import";
+import { parseMemberList, parseMemberRows } from "@/lib/member-import";
 import { isValidRanking } from "@/lib/rankings";
 import { createClient } from "@/lib/supabase/server";
+import { readXlsx } from "@/lib/xlsx";
 
-// Import a member list, pasted or uploaded as a CSV file.
+// Import a member list: pasted, or uploaded as an Excel (.xlsx) or CSV file.
+// Existing members (same email address, else same name) are updated.
 export async function importMembers(_: ActionState, formData: FormData): Promise<ActionState> {
   await requireAdmin();
 
   const file = formData.get("file");
-  const text =
-    file instanceof File && file.size > 0
-      ? await file.text()
-      : String(formData.get("text") ?? "");
+  let parsed: ReturnType<typeof parseMemberList>;
+  if (file instanceof File && file.size > 0 && /\.xlsx$/i.test(file.name)) {
+    try {
+      parsed = parseMemberRows(readXlsx(new Uint8Array(await file.arrayBuffer())));
+    } catch (e) {
+      return { error: e instanceof Error ? e.message : "Het Excel-bestand kon niet gelezen worden." };
+    }
+  } else if (file instanceof File && file.size > 0 && /\.xls$/i.test(file.name)) {
+    return { error: "Oude .xls-bestanden worden niet ondersteund. Bewaar het bestand in Excel als .xlsx." };
+  } else {
+    parsed = parseMemberList(
+      file instanceof File && file.size > 0 ? await file.text() : String(formData.get("text") ?? ""),
+    );
+  }
 
-  const { members, problems } = parseMemberList(text);
+  const { members, problems } = parsed;
   if (members.length === 0) return { error: problems.join(" ") || "Geen leden gevonden." };
 
   const supabase = await createClient();
