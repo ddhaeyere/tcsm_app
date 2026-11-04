@@ -7,8 +7,8 @@ import { requireAdmin } from "@/lib/auth";
 
 export const metadata: Metadata = { title: "Leden importeren" };
 
-const EXAMPLE = `Naam\tVoornaam\tGeslacht\tEnkel\tDubbel\tPadel\tE-mail
-De Meyer\tSien\tV\t3 ptn\t5 ptn\tP50\tsien@voorbeeld.be`;
+const EXAMPLE = `Naam\tVoornaam\tGeslacht\tGeboortedatum\tEnkel\tDubbel\tPadel\tE-mail
+De Meyer\tSien\tV\t17/04/1980\t3 ptn\t5 ptn\tP50\tsien@voorbeeld.be`;
 
 export default async function ImportMembersPage() {
   await requireAdmin();
