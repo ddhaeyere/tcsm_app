@@ -26,7 +26,7 @@ export default async function ImportMembersPage() {
         <ActionForm action={importMembers} className="space-y-4">
           <Field
             label="Excel- of CSV-bestand"
-            hint="Bijvoorbeeld de ledenlijst met de kolommen Naam, Voornaam, Geslacht, Geboortedatum, Klassement enkel, Klassement dubbel, Klassement padel en E-mail. De geboortedatum wordt niet bewaard."
+            hint="Bijvoorbeeld de ledenlijst met de kolommen Naam, Voornaam, Geslacht, Geboortedatum, Klassement enkel, Klassement dubbel, Klassement padel en E-mail."
           >
             <input
               name="file"
@@ -37,7 +37,7 @@ export default async function ImportMembersPage() {
           </Field>
           <Field
             label="Of plak de ledenlijst"
-            hint='De eerste regel bevat de kolomnamen: Naam, Voornaam, Geslacht, Enkel, Dubbel, Padel en E-mail. Alleen Naam en Voornaam zijn verplicht.'
+            hint='De eerste regel bevat de kolomnamen: Naam, Voornaam, Geslacht, Geboortedatum, Enkel, Dubbel, Padel en E-mail. Alleen Naam en Voornaam zijn verplicht.'
           >
             <textarea
               name="text"
