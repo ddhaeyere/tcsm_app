@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { Badge, Card, PageTitle } from "@/components/ui";
 import { getCurrentMember, requireApprovedProfile } from "@/lib/auth";
-import { categoryLabel, formatDateTime, formatDay, hoursAgo, isRegistrationOpen } from "@/lib/format";
+import { formatDateTime, formatDay, hoursAgo, isRegistrationOpen } from "@/lib/format";
+import { SPORTS, eaters, maxPlayers, offersSport, sportLists } from "@/lib/registrations";
 import { createClient } from "@/lib/supabase/server";
 import { EVENT_SELECT, type ClubEvent } from "@/lib/types";
 
@@ -42,13 +43,10 @@ export default async function EventsPage() {
 
 function EventCard({ event, memberId }: { event: ClubEvent; memberId: string | null }) {
   const { day, month } = formatDay(event.starts_at);
-  const players = event.event_categories.flatMap((c) => c.entry_players);
-  const uniqueNames = [...new Map(players.map((p) => [p.member_id, p.member?.full_name ?? ""])).values()];
-  const joined = event.event_categories.some((c) =>
-    c.entry_players.some((p) => p.member_id === memberId),
-  );
+  const players = event.registrations.filter((r) => r.tennis || r.padel);
+  const uniqueNames = players.map((r) => r.member?.full_name ?? "");
+  const joined = event.registrations.some((r) => r.member_id === memberId);
   const open = isRegistrationOpen(event);
-  const categories = [...event.event_categories].sort((a, b) => a.position - b.position);
 
   return (
     <Link href={`/evenementen/${event.id}`} className="block">
@@ -65,11 +63,22 @@ function EventCard({ event, memberId }: { event: ClubEvent; memberId: string | n
           </div>
           <p className="text-sm text-stone-600">{formatDateTime(event.starts_at)}</p>
           <div className="mt-2 flex flex-wrap gap-1">
-            {categories.map((c) => (
-              <Badge key={c.id} tone={c.sport === "padel" ? "club" : "neutral"}>
-                {categoryLabel(c)}: {c.entry_players.length}
+            {SPORTS.filter((sport) => offersSport(event, sport)).map((sport) => {
+              const { players: playing, reserves } = sportLists(event, sport);
+              const max = maxPlayers(event, sport);
+              return (
+                <Badge key={sport} tone={sport === "padel" ? "club" : "neutral"}>
+                  {sport === "padel" ? "Padel" : "Tennis"}: {playing.length}
+                  {max !== null && ` / ${max}`}
+                  {reserves.length > 0 && ` + ${reserves.length} reserve`}
+                </Badge>
+              );
+            })}
+            {event.catering && (
+              <Badge tone="amber">
+                {event.catering}: {eaters(event).length}
               </Badge>
-            ))}
+            )}
           </div>
           <p className="mt-2 text-sm text-stone-700">
             {uniqueNames.length === 0 ? (

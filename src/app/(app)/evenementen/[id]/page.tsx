@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { EntriesTable, SPORTS } from "@/components/entries-table";
-import { RegisterCard } from "@/components/register-card";
+import { RegisterCard, RegistrationLists } from "@/components/event-registrations";
 import {
   getCurrentMember,
   isOrganiser,
@@ -13,6 +12,7 @@ import {
   isRegistrationOpen,
   registrationClosesAt,
 } from "@/lib/format";
+import { SPORTS, describeChoice, reservePlace } from "@/lib/registrations";
 import { createClient } from "@/lib/supabase/server";
 import {
   EVENT_SELECT,
@@ -46,9 +46,12 @@ export default async function EventPage({
   const open = isRegistrationOpen(event);
   // Admins keep registering members after the deadline.
   const canRegister = open || isOrganiser(profile);
-  const categories = [...event.event_categories].sort(
-    (a, b) => a.position - b.position,
-  );
+  const mine = me && event.registrations.find((r) => r.member_id === me.id);
+  const myReserves = me
+    ? SPORTS.map((sport) => ({ sport, place: reservePlace(event, sport, me.id) })).filter(
+        (r) => r.place !== null,
+      )
+    : [];
 
   return (
     <>
@@ -84,36 +87,21 @@ export default async function EventPage({
         )}
       </div>
 
-      <div className="space-y-4">
-        {SPORTS.map((sport) => {
-          const ofSport = categories.filter((c) => c.sport === sport);
-          return (
-            ofSport.length > 0 && (
-              <EntriesTable
-                key={sport}
-                sport={sport}
-                event={event}
-                categories={ofSport}
-                profile={profile}
-                me={me}
-                members={members}
-                open={canRegister}
-              />
-            )
-          );
-        })}
+      {mine && (
+        <p className="mb-4 rounded-lg bg-club-50 p-3 text-sm text-club-900">
+          <strong>Je bent ingeschreven</strong> voor {describeChoice(mine, event.catering)}.
+          {myReserves.map((r) => (
+            <span key={r.sport}>
+              {" "}
+              Voor {r.sport} sta je op de reservelijst (plaats {r.place}).
+            </span>
+          ))}
+        </p>
+      )}
 
-        {canRegister && <h2 className="pt-2 text-xl font-bold">Inschrijven</h2>}
-        {categories.map((category) => (
-          <RegisterCard
-            key={category.id}
-            event={event}
-            category={category}
-            me={me}
-            members={members}
-            open={canRegister}
-          />
-        ))}
+      <div className="space-y-4">
+        {canRegister && <RegisterCard event={event} profile={profile} me={me} members={members} />}
+        <RegistrationLists event={event} me={me} />
       </div>
     </>
   );
