@@ -7,7 +7,7 @@ import { RANKINGS } from "@/lib/rankings";
 import type { Sport } from "@/lib/types";
 
 type RankingKey = "singles" | "doubles" | "padel";
-type SortKey = "name" | RankingKey;
+type SortKey = "name" | "birth_date" | RankingKey;
 
 const PAGE_SIZE = 25;
 
@@ -21,6 +21,8 @@ export interface TableMember {
   singles: string | null;
   doubles: string | null;
   padel: string | null;
+  // yyyy-mm-dd
+  birth_date: string | null;
   is_admin: boolean;
   has_account: boolean;
 }
@@ -46,6 +48,13 @@ export function MemberTable({ members }: { members: TableMember[] }) {
     .sort((a, b) => {
       const byName = a.name.localeCompare(b.name, "nl");
       if (sort.key === "name") return sort.desc ? -byName : byName;
+      if (sort.key === "birth_date") {
+        // Without a birth date always comes last, by name.
+        const [da, db] = [a.birth_date, b.birth_date];
+        if (!da || !db) return da === db ? byName : !da ? 1 : -1;
+        if (da === db) return byName;
+        return (da < db ? -1 : 1) * (sort.desc ? -1 : 1);
+      }
       // Without a ranking always comes last, by name.
       const ra = rank(sort.key, a[sort.key]);
       const rb = rank(sort.key, b[sort.key]);
@@ -58,7 +67,8 @@ export function MemberTable({ members }: { members: TableMember[] }) {
   const current = Math.min(page, pages - 1);
   const rows = shown.slice(current * PAGE_SIZE, (current + 1) * PAGE_SIZE);
 
-  // A ranking column starts with the strongest first; name starts at A.
+  // A ranking column starts with the strongest first, birth date with the
+  // youngest; name starts at A.
   const sortBy = (key: SortKey) => {
     setSort((s) => (s.key === key ? { key, desc: !s.desc } : { key, desc: key !== "name" }));
     setPage(0);
@@ -112,6 +122,7 @@ export function MemberTable({ members }: { members: TableMember[] }) {
               {header("singles", "Tennis enkel")}
               {header("doubles", "Tennis dubbel")}
               {header("padel", "Padel")}
+              {header("birth_date", "Geboren")}
             </tr>
           </thead>
           <tbody className="divide-y divide-stone-100">
@@ -137,11 +148,20 @@ export function MemberTable({ members }: { members: TableMember[] }) {
                 <RankingCell value={m.singles} />
                 <RankingCell value={m.doubles} />
                 <RankingCell value={m.padel} />
+                <td className="px-1 py-2 text-center whitespace-nowrap">
+                  {m.birth_date ? (
+                    m.birth_date.split("-").reverse().join("/")
+                  ) : (
+                    <span className="text-stone-300" aria-label="geen geboortedatum">
+                      –
+                    </span>
+                  )}
+                </td>
               </tr>
             ))}
             {rows.length === 0 && (
               <tr>
-                <td colSpan={4} className="py-3 text-stone-600">
+                <td colSpan={5} className="py-3 text-stone-600">
                   Niemand gevonden.
                 </td>
               </tr>

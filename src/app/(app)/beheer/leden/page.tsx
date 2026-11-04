@@ -15,7 +15,7 @@ export default async function MemberListPage() {
     supabase.rpc("admin_list_members"),
     supabase.rpc("admin_list_profiles"),
   ]);
-  const members = (data ?? []) as (ClubMember & { email: string | null })[];
+  const members = (data ?? []) as (ClubMember & { email: string | null; birth_date: string | null })[];
   const adminAccounts = (
     (accounts ?? []) as { id: string; full_name: string; email: string; role: UserRole; status: string }[]
   ).filter((a) => a.role !== "member" && a.status === "approved");
@@ -70,6 +70,7 @@ export default async function MemberListPage() {
             singles: m.tennis_singles_ranking,
             doubles: m.tennis_doubles_ranking,
             padel: m.padel_ranking,
+            birth_date: m.birth_date ?? null,
             is_admin: !!m.profile_id && admins.has(m.profile_id),
             has_account: !!m.profile_id,
           }))}
