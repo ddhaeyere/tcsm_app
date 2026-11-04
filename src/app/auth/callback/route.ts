@@ -1,5 +1,6 @@
 import type { EmailOtpType } from "@supabase/supabase-js";
 import { NextResponse, type NextRequest } from "next/server";
+import { notifyAdminsOfNewAccount } from "@/lib/new-account-notice";
 import { createClient } from "@/lib/supabase/server";
 
 // Landing page for the links in confirmation and password reset emails.
@@ -24,6 +25,9 @@ export async function GET(request: NextRequest) {
   if (!ok) {
     return NextResponse.redirect(new URL("/login?fout=link", origin));
   }
+  // A freshly confirmed account that waits for approval: let the admins know.
+  if (type !== "recovery") await notifyAdminsOfNewAccount(supabase, origin);
+
   const destination = type === "recovery" ? "/nieuw-wachtwoord" : next;
   return NextResponse.redirect(new URL(destination, origin));
 }

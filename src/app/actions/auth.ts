@@ -3,6 +3,7 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import type { ActionState } from "@/components/forms";
+import { notifyAdminsOfNewAccount } from "@/lib/new-account-notice";
 import { createClient } from "@/lib/supabase/server";
 
 async function siteOrigin(): Promise<string> {
@@ -56,7 +57,10 @@ export async function signup(_: ActionState, formData: FormData): Promise<Action
   }
 
   // Without email confirmation the member is logged in right away.
-  if (data.session) redirect("/wachten");
+  if (data.session) {
+    await notifyAdminsOfNewAccount(supabase, await siteOrigin());
+    redirect("/wachten");
+  }
 
   return {
     message:
