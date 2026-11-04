@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { MemberTable } from "@/components/member-table";
 import { Badge, Card, PageTitle } from "@/components/ui";
 import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -61,35 +62,18 @@ export default async function MemberListPage() {
       </Card>
 
       <Card>
-        {members.length === 0 && (
-          <p className="text-sm text-stone-600">Nog geen leden. Importeer de ledenlijst van de club.</p>
-        )}
-        <ul className="divide-y divide-stone-100">
-          {members.map((m) => (
-            <li key={m.id}>
-              <Link
-                href={`/beheer/leden/${m.id}`}
-                className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2"
-              >
-                <span className="min-w-48 flex-1">
-                  <span className="font-medium text-club-800 underline">
-                    {m.last_name} {m.first_name}
-                  </span>
-                  <span className="block text-xs text-stone-600">{m.email ?? "geen e-mailadres"}</span>
-                </span>
-                <span className="text-xs text-stone-600">
-                  Enkel {m.tennis_singles_ranking ?? "–"} · Dubbel {m.tennis_doubles_ranking ?? "–"} ·
-                  Padel {m.padel_ranking ?? "–"}
-                </span>
-                {m.profile_id && admins.has(m.profile_id) ? (
-                  <Badge tone="club">beheerder</Badge>
-                ) : (
-                  m.profile_id && <Badge tone="green">heeft account</Badge>
-                )}
-              </Link>
-            </li>
-          ))}
-        </ul>
+        <MemberTable
+          members={members.map((m) => ({
+            id: m.id,
+            name: `${m.last_name} ${m.first_name}`,
+            email: m.email,
+            singles: m.tennis_singles_ranking,
+            doubles: m.tennis_doubles_ranking,
+            padel: m.padel_ranking,
+            is_admin: !!m.profile_id && admins.has(m.profile_id),
+            has_account: !!m.profile_id,
+          }))}
+        />
       </Card>
     </>
   );
