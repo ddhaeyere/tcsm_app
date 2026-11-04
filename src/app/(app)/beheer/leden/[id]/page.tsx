@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { updateAccount } from "@/app/actions/admin";
 import { deleteClubMember, updateClubMember } from "@/app/actions/members";
 import { ActionForm, SubmitButton } from "@/components/forms";
+import { RoleSelect } from "@/components/role-select";
 import { Card, Field, PageTitle, RankingField, inputClass } from "@/components/ui";
 import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -87,14 +88,11 @@ export default async function EditMemberPage({ params }: PageProps<"/beheer/lede
               label="Rol"
               hint="Een beheerder maakt evenementen aan en beheert de ledenlijst en de inschrijvingen."
             >
-              <select
-                name="role"
-                defaultValue={account.role === "member" ? "member" : "admin"}
-                className={`${inputClass} w-44`}
-              >
-                <option value="member">Lid</option>
-                <option value="admin">Beheerder</option>
-              </select>
+              <RoleSelect
+                key={account.role}
+                role={account.role === "member" ? "member" : "admin"}
+                className="w-44"
+              />
             </Field>
             <SubmitButton variant="secondary">Opslaan</SubmitButton>
           </ActionForm>
