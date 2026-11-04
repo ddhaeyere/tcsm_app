@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { updateAccount } from "@/app/actions/admin";
+import { setMemberAdmin } from "@/app/actions/admin";
 import { deleteClubMember, updateClubMember } from "@/app/actions/members";
 import { ActionForm, SubmitButton } from "@/components/forms";
 import { RoleSelect } from "@/components/role-select";
@@ -16,15 +16,17 @@ export default async function EditMemberPage({ params }: PageProps<"/beheer/lede
   const { id } = await params;
   const me = await requireAdmin();
   const supabase = await createClient();
-  const [{ data }, { data: accounts }] = await Promise.all([
+  const [{ data }, { data: accounts }, { data: flagged }] = await Promise.all([
     supabase.rpc("admin_list_members"),
     supabase.rpc("admin_list_profiles"),
+    supabase.rpc("admin_list_member_admins"),
   ]);
   const member = ((data ?? []) as (ClubMember & { email: string | null; birth_date: string | null })[]).find((m) => m.id === id);
   if (!member) notFound();
   const account = ((accounts ?? []) as { id: string; role: UserRole }[]).find(
     (a) => a.id === member.profile_id,
   );
+  const isAdmin = account ? account.role !== "member" : ((flagged ?? []) as string[]).includes(member.id);
 
   return (
     <>
@@ -83,24 +85,20 @@ export default async function EditMemberPage({ params }: PageProps<"/beheer/lede
 
       <Card className="mb-6">
         <h2 className="font-semibold">Rechten</h2>
-        {!account ? (
-          <p className="mt-1 text-sm text-stone-600">
-            Dit lid kan beheerder worden zodra het een account aanmaakt met het e-mailadres hierboven.
-          </p>
-        ) : account.id === me.id ? (
+        {account?.id === me.id ? (
           <p className="mt-1 text-sm text-stone-600">Dit ben jij. Je kan je eigen rechten niet aanpassen.</p>
         ) : (
-          <ActionForm action={updateAccount} className="mt-2 flex flex-wrap items-end gap-2">
-            <input type="hidden" name="profile_id" value={account.id} />
+          <ActionForm action={setMemberAdmin} className="mt-2 flex flex-wrap items-end gap-2">
+            <input type="hidden" name="member_id" value={member.id} />
             <Field
               label="Rol"
-              hint="Een beheerder maakt evenementen aan en beheert de ledenlijst en de inschrijvingen."
+              hint={
+                account
+                  ? "Een beheerder maakt evenementen aan en beheert de ledenlijst en de inschrijvingen."
+                  : "Dit lid heeft nog geen account. Als beheerder krijgt het die rechten zodra het een account maakt met het e-mailadres hierboven."
+              }
             >
-              <RoleSelect
-                key={account.role}
-                role={account.role === "member" ? "member" : "admin"}
-                className="w-44"
-              />
+              <RoleSelect key={String(isAdmin)} role={isAdmin ? "admin" : "member"} className="w-44" />
             </Field>
             <SubmitButton variant="secondary">Opslaan</SubmitButton>
           </ActionForm>

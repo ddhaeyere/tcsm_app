@@ -25,3 +25,21 @@ export async function updateAccount(_: ActionState, formData: FormData): Promise
   revalidatePath("/beheer");
   return { message: "Opgeslagen." };
 }
+
+// Make a member of the club list an admin, or take it away. Works for members
+// without an account too: they become an admin once their account is linked.
+export async function setMemberAdmin(_: ActionState, formData: FormData): Promise<ActionState> {
+  const memberId = String(formData.get("member_id") ?? "");
+  if (!memberId) return { error: "Kies een lid." };
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("admin_set_member_admin", {
+    p_member_id: memberId,
+    p_admin: formData.get("role") === "admin",
+  });
+  if (error) return { error: error.message };
+
+  revalidatePath("/beheer/accounts");
+  revalidatePath("/beheer/leden", "layout");
+  return { message: "Opgeslagen." };
+}
