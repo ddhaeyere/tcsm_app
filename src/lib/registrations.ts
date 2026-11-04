@@ -16,6 +16,8 @@ function since(r: Registration, sport: Sport): string | null {
 
 // Who plays the sport, in order of registration, split at the maximum: the
 // rest is the reserve list. Someone dropping out moves the first reserve up.
+// Once an organiser closed the registrations, whoever signed up after that
+// is always a reserve, behind those already on the list.
 export function sportLists(
   event: ClubEvent,
   sport: Sport,
@@ -26,9 +28,11 @@ export function sportLists(
       (a, b) =>
         Date.parse(since(a, sport)!) - Date.parse(since(b, sport)!) || a.id.localeCompare(b.id),
     );
-  const max = maxPlayers(event, sport);
-  if (max == null) return { players: all, reserves: [] };
-  return { players: all.slice(0, max), reserves: all.slice(max) };
+  const closedAt = event.registrations_closed_at ? Date.parse(event.registrations_closed_at) : null;
+  const inTime =
+    closedAt === null ? all.length : all.filter((r) => Date.parse(since(r, sport)!) <= closedAt).length;
+  const places = Math.min(maxPlayers(event, sport) ?? Infinity, inTime);
+  return { players: all.slice(0, places), reserves: all.slice(places) };
 }
 
 // Place on the reserve list (1 is first), or null when the member plays.

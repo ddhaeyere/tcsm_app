@@ -60,6 +60,7 @@ function EventCard({ event, memberId }: { event: ClubEvent; memberId: string | n
             <h2 className="font-semibold text-stone-900">{event.title}</h2>
             {joined && <Badge tone="green">Je doet mee</Badge>}
             {!open && <Badge>Inschrijvingen gesloten</Badge>}
+            {open && event.registrations_closed_at && <Badge tone="amber">Enkel nog reservelijst</Badge>}
           </div>
           <p className="text-sm text-stone-600">{formatDateTime(event.starts_at)}</p>
           <div className="mt-2 flex flex-wrap gap-1">

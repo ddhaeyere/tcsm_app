@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { deleteEvent, updateEvent } from "@/app/actions/events";
 import { RegisterCard, RegistrationOverview } from "@/components/event-registrations";
+import { CloseRegistrations } from "@/components/close-registrations";
 import { ActionForm, SubmitButton } from "@/components/forms";
 import { Card, PageTitle } from "@/components/ui";
 import { getCurrentMember, requireOrganiser } from "@/lib/auth";
@@ -49,6 +50,7 @@ export default async function ManageEventPage({
       <PageTitle>{event.title}</PageTitle>
 
       <div className="mb-6 space-y-4">
+        <CloseRegistrations eventId={event.id} closedAt={event.registrations_closed_at} />
         <RegistrationOverview event={event} me={me} manage registeredByNames={profileName} />
         <RegisterCard event={event} profile={profile} me={me} members={members} />
       </div>

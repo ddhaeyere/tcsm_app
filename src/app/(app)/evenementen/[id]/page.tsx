@@ -66,7 +66,9 @@ export default async function EventPage({
           {event.location && ` · ${event.location}`}
         </p>
         <p className="mt-1 text-sm text-stone-600">
-          {open
+          {open && event.registrations_closed_at
+            ? "De inschrijvingen zijn afgesloten. Wie nu nog inschrijft voor tennis of padel, komt op de reservelijst."
+            : open
             ? `Inschrijven kan tot ${formatDateTime(registrationClosesAt(event).toISOString())}.`
             : isOrganiser(profile)
               ? "De inschrijvingen zijn gesloten. Als beheerder kan je nog leden inschrijven."

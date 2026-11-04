@@ -58,13 +58,16 @@ export interface ClubEvent {
   max_padel: number | null;
   // Name of the meal people can register for, e.g. "Barbecue"; null when none.
   catering: string | null;
+  // Set when an organiser closed the registrations by hand: whoever signs up
+  // for a sport after this goes on the reserve list.
+  registrations_closed_at: string | null;
   registrations: Registration[];
 }
 
 // Select string shared by the pages that show events with their registrations.
 export const EVENT_SELECT = `
   id, title, description, location, starts_at, ends_at, registration_deadline,
-  has_tennis, has_padel, max_tennis, max_padel, catering,
+  has_tennis, has_padel, max_tennis, max_padel, catering, registrations_closed_at,
   registrations (
     id, member_id, tennis, padel, eats, tennis_since, padel_since, registered_by, created_at,
     member:club_members ( full_name, tennis_singles_ranking, tennis_doubles_ranking, padel_ranking )

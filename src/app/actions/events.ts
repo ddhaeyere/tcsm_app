@@ -132,3 +132,24 @@ export async function deleteEvent(_: ActionState, formData: FormData): Promise<A
   refresh();
   redirect("/beheer");
 }
+
+// Close the registrations by hand (whoever signs up after this goes on the
+// reserve list), or open them again.
+export async function setRegistrationsClosed(input: {
+  eventId: string;
+  closed: boolean;
+}): Promise<ActionState> {
+  await requireOrganiser();
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("events")
+    .update({ registrations_closed_at: input.closed ? new Date().toISOString() : null })
+    .eq("id", input.eventId);
+  if (error) return { error: "Opslaan lukte niet." };
+  refresh(input.eventId);
+  return {
+    message: input.closed
+      ? "Inschrijvingen afgesloten. Wie nu nog inschrijft, komt op de reservelijst."
+      : "Inschrijvingen weer open.",
+  };
+}

@@ -78,7 +78,9 @@ function statusText(
     lines.push(`Ingeschreven voor ${describeChoice(confirmed, event.catering)}.`);
   for (const r of reserves)
     lines.push(
-      `${sportLabel(r.sport)} is volzet: je staat op de reservelijst (plaats ${r.place}). ` +
+      `${sportLabel(r.sport)}: ${
+        event.registrations_closed_at ? "de inschrijvingen zijn afgesloten" : "volzet"
+      }, je staat op de reservelijst (plaats ${r.place}). ` +
         "Valt er iemand af, dan schuif je vanzelf door.",
     );
   return lines.join(" ");
