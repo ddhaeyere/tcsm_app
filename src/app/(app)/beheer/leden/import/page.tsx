@@ -18,15 +18,26 @@ export default async function ImportMembersPage() {
       <Link href="/beheer/leden" className="text-sm text-club-700 underline">
         ← Ledenlijst
       </Link>
-      <PageTitle sub="Kopieer de lijst uit Excel en plak ze hieronder, of kies een CSV-bestand.">
+      <PageTitle sub="Kies een Excel-bestand (.xlsx) of CSV-bestand, of kopieer de lijst uit Excel en plak ze hieronder.">
         Leden importeren
       </PageTitle>
 
       <Card>
         <ActionForm action={importMembers} className="space-y-4">
           <Field
-            label="Ledenlijst"
-            hint='De eerste regel bevat de kolomnamen: Naam, Voornaam, Geslacht, Enkel, Dubbel, Padel en E-mail. Alleen Naam en Voornaam zijn verplicht. Een lid dat al bestaat (zelfde e-mailadres of zelfde naam) wordt bijgewerkt.'
+            label="Excel- of CSV-bestand"
+            hint="Bijvoorbeeld de ledenlijst met de kolommen Naam, Voornaam, Geslacht, Geboortedatum, Klassement enkel, Klassement dubbel, Klassement padel en E-mail. De geboortedatum wordt niet bewaard."
+          >
+            <input
+              name="file"
+              type="file"
+              accept=".xlsx,.csv,.txt,.tsv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              className="mt-1 block text-sm"
+            />
+          </Field>
+          <Field
+            label="Of plak de ledenlijst"
+            hint='De eerste regel bevat de kolomnamen: Naam, Voornaam, Geslacht, Enkel, Dubbel, Padel en E-mail. Alleen Naam en Voornaam zijn verplicht.'
           >
             <textarea
               name="text"
@@ -35,9 +46,11 @@ export default async function ImportMembersPage() {
               className={`${inputClass} font-mono text-sm`}
             />
           </Field>
-          <Field label="Of kies een CSV-bestand">
-            <input name="file" type="file" accept=".csv,.txt,.tsv,text/csv" className="mt-1 block text-sm" />
-          </Field>
+          <p className="text-sm text-stone-600">
+            Een lid dat al bestaat (zelfde e-mailadres, of anders zelfde naam en voornaam) wordt
+            bijgewerkt met de gegevens uit de lijst, bv. nieuwe klassementen. Lege cellen laten de
+            bestaande gegevens ongemoeid.
+          </p>
           <SubmitButton>Importeren</SubmitButton>
         </ActionForm>
       </Card>
