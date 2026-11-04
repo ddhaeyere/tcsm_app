@@ -115,3 +115,41 @@ async function mailMember(registrationId: string, event: ClubEvent, summary: str
   ];
   await sendMail(contact.email, `Inschrijving: ${event.title}`, lines.join("\n"));
 }
+
+// Organisers on the manage page: change what a member registered for. No mail
+// goes out; the registration keeps whoever registered the member.
+export async function adminUpdateRegistration(input: {
+  eventId: string;
+  memberId: string;
+  tennis: boolean;
+  padel: boolean;
+  eats: boolean;
+}): Promise<ActionState> {
+  if (!input.tennis && !input.padel && !input.eats)
+    return { error: "Vink minstens één onderdeel aan, of verwijder de inschrijving." };
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("save_registration", {
+    p_event_id: input.eventId,
+    p_member_id: input.memberId,
+    p_tennis: input.tennis,
+    p_padel: input.padel,
+    p_eats: input.eats,
+  });
+  if (error) return { error: error.message };
+  refresh(input.eventId);
+  return { message: "Inschrijving aangepast." };
+}
+
+// Organisers on the manage page: remove a registration entirely.
+export async function adminDeleteRegistration(input: {
+  eventId: string;
+  registrationId: string;
+}): Promise<ActionState> {
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("cancel_registration", {
+    p_registration_id: input.registrationId,
+  });
+  if (error) return { error: error.message };
+  refresh(input.eventId);
+  return { message: "Inschrijving verwijderd." };
+}
