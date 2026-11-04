@@ -1,4 +1,4 @@
-import type { ClubMember, PlayFormat, Sport } from "./types";
+import type { Sport } from "./types";
 
 // Official rankings of Tennis en Padel Vlaanderen, lowest first.
 // Adjust these lists when the federation changes its rankings.
@@ -16,16 +16,6 @@ export function rankingOptions(sport: Sport): string[] {
 
 export function isValidRanking(sport: Sport, ranking: string): boolean {
   return rankingOptions(sport).includes(ranking);
-}
-
-// The member's ranking for this kind of category.
-export function memberRanking(
-  member: Pick<ClubMember, "tennis_singles_ranking" | "tennis_doubles_ranking" | "padel_ranking">,
-  sport: Sport,
-  format: PlayFormat,
-): string | null {
-  if (sport === "padel") return member.padel_ranking;
-  return format === "singles" ? member.tennis_singles_ranking : member.tennis_doubles_ranking;
 }
 
 // Reads a ranking as written in the club's member list, e.g. "5 ptn *" or

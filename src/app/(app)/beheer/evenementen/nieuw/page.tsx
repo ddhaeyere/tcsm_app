@@ -20,9 +20,6 @@ export default async function NewEventPage() {
       <Card>
         <ActionForm action={createEvent} className="space-y-6">
           <EventFields />
-          <p className="text-sm text-stone-600">
-            Na het aanmaken voeg je de reeksen toe, bijvoorbeeld dubbel dames tot 30 punten.
-          </p>
           <SubmitButton>Evenement aanmaken</SubmitButton>
         </ActionForm>
       </Card>

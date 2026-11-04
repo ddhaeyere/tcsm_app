@@ -17,7 +17,7 @@ export default async function AdminPage() {
   const [{ data: events }, pending] = await Promise.all([
     supabase
       .from("events")
-      .select("id, title, starts_at, event_categories ( entry_players ( member_id ) )")
+      .select("id, title, starts_at, registrations ( tennis, padel )")
       .order("starts_at", { ascending: false }),
     profile.role === "admin"
       ? supabase
@@ -56,9 +56,7 @@ export default async function AdminPage() {
         {(events ?? []).length === 0 && <p className="text-sm text-stone-600">Nog geen evenementen.</p>}
         <ul className="divide-y divide-stone-100">
           {(events ?? []).map((e) => {
-            const players = new Set(
-              e.event_categories.flatMap((c) => c.entry_players.map((p) => p.member_id)),
-            ).size;
+            const players = e.registrations.filter((r) => r.tennis || r.padel).length;
             return (
               <li key={e.id} className="py-2">
                 <Link href={`/beheer/evenementen/${e.id}`} className="flex items-center gap-2">

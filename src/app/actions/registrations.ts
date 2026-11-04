@@ -3,121 +3,115 @@
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import type { ActionState } from "@/components/forms";
-import { categoryLabel, formatDateTime } from "@/lib/format";
+import { formatDateTime, sportLabel } from "@/lib/format";
 import { sendMail } from "@/lib/mail";
+import { SPORTS, describeChoice, reservePlace } from "@/lib/registrations";
 import { createClient } from "@/lib/supabase/server";
-import type { Category } from "@/lib/types";
+import { EVENT_SELECT, type ClubEvent } from "@/lib/types";
 
 function refresh(eventId: string) {
   revalidatePath("/");
+  revalidatePath("/beheer");
   revalidatePath(`/evenementen/${eventId}`);
   revalidatePath(`/beheer/evenementen/${eventId}`);
 }
 
-export async function registerForCategory(
-  _: ActionState,
-  formData: FormData,
-): Promise<ActionState> {
+// Registers a member, changes their registration, or (intent "cancel")
+// unregisters them.
+export async function saveRegistration(_: ActionState, formData: FormData): Promise<ActionState> {
   const eventId = String(formData.get("event_id"));
   const memberId = String(formData.get("member_id") ?? "");
-  const partnerId = String(formData.get("partner_id") ?? "");
   if (!memberId) return { error: "Kies wie je inschrijft." };
-
   const supabase = await createClient();
-  const { data: entryId, error } = await supabase.rpc("register_for_category", {
-    p_category_id: String(formData.get("category_id")),
-    p_member_id: memberId,
-    p_partner_id: partnerId || null,
-  });
-  if (error) return { error: error.message };
 
-  await mailPlayers(entryId as string);
-  refresh(eventId);
-  return { message: "Ingeschreven." };
-}
+  if (formData.get("intent") === "cancel") {
+    const { error } = await supabase.rpc("cancel_registration", {
+      p_registration_id: String(formData.get("registration_id")),
+    });
+    if (error) return { error: error.message };
+    refresh(eventId);
+    return { message: "Uitgeschreven." };
+  }
 
-export async function addPartner(_: ActionState, formData: FormData): Promise<ActionState> {
-  const eventId = String(formData.get("event_id"));
-  const entryId = String(formData.get("entry_id"));
-  const memberId = String(formData.get("member_id") ?? "");
-  if (!memberId) return { error: "Kies een partner." };
-
-  const supabase = await createClient();
-  const { error } = await supabase.rpc("add_partner", {
-    p_entry_id: entryId,
-    p_member_id: memberId,
-  });
-  if (error) return { error: error.message };
-
-  await mailPlayers(entryId);
-  refresh(eventId);
-  return {};
-}
-
-export async function withdrawRegistration(
-  _: ActionState,
-  formData: FormData,
-): Promise<ActionState> {
-  const eventId = String(formData.get("event_id"));
-  const supabase = await createClient();
-  const { error } = await supabase.rpc("withdraw_registration", {
-    p_entry_id: String(formData.get("entry_id")),
-    p_member_id: String(formData.get("member_id")),
-  });
-  if (error) return { error: error.message };
-
-  refresh(eventId);
-  return {};
-}
-
-// Lets every player of a fresh registration know they are registered, and
-// by whom. Players registered earlier on the same entry get no new mail.
-async function mailPlayers(entryId: string) {
-  const supabase = await createClient();
-  const [{ data: players }, { data: entry }] = await Promise.all([
-    supabase.rpc("registration_mail_details", { p_entry_id: entryId }),
-    supabase
-      .from("entries")
-      .select("category:event_categories ( sport, format, label, gender, max_ranking, event:events ( id, title, starts_at ) )")
-      .eq("id", entryId)
-      .single(),
-  ]);
-  if (!players?.length || !entry) return;
-
-  const category = entry.category as unknown as Pick<Category, "sport" | "format" | "label" | "gender" | "max_ranking"> & {
-    event: { id: string; title: string; starts_at: string };
+  const choice = {
+    tennis: formData.get("tennis") === "on",
+    padel: formData.get("padel") === "on",
+    eats: formData.get("eats") === "on",
   };
-  const { event } = category;
+  if (!choice.tennis && !choice.padel && !choice.eats)
+    return { error: "Duid aan wat je wil doen: tennis, padel of eten." };
+
+  const { data: registrationId, error } = await supabase.rpc("save_registration", {
+    p_event_id: eventId,
+    p_member_id: memberId,
+    p_tennis: choice.tennis,
+    p_padel: choice.padel,
+    p_eats: choice.eats,
+  });
+  if (error) return { error: error.message };
+
+  const { data } = await supabase.from("events").select(EVENT_SELECT).eq("id", eventId).single();
+  const event = data as unknown as ClubEvent | null;
+  const summary = event ? statusText(event, memberId, choice) : "Opgeslagen.";
+
+  if (event) await mailMember(registrationId as string, event, summary);
+  refresh(eventId);
+  return { message: summary };
+}
+
+// "Ingeschreven voor tennis en eten (Barbecue). Padel is volzet: je staat op
+// de reservelijst (plaats 2)."
+function statusText(
+  event: ClubEvent,
+  memberId: string,
+  choice: { tennis: boolean; padel: boolean; eats: boolean },
+): string {
+  const reserves = SPORTS.map((sport) => ({ sport, place: reservePlace(event, sport, memberId) }))
+    .filter((r) => r.place !== null);
+  const confirmed = {
+    tennis: choice.tennis && !reserves.some((r) => r.sport === "tennis"),
+    padel: choice.padel && !reserves.some((r) => r.sport === "padel"),
+    eats: choice.eats,
+  };
+  const lines = [];
+  if (confirmed.tennis || confirmed.padel || confirmed.eats)
+    lines.push(`Ingeschreven voor ${describeChoice(confirmed, event.catering)}.`);
+  for (const r of reserves)
+    lines.push(
+      `${sportLabel(r.sport)} is volzet: je staat op de reservelijst (plaats ${r.place}). ` +
+        "Valt er iemand af, dan schuif je vanzelf door.",
+    );
+  return lines.join(" ");
+}
+
+// Lets the member know they are registered, and by whom.
+async function mailMember(registrationId: string, event: ClubEvent, summary: string) {
+  const supabase = await createClient();
+  const { data } = await supabase.rpc("registration_contact", {
+    p_registration_id: registrationId,
+  });
+  const contact = (
+    data as
+      | { full_name: string; email: string | null; registered_by_name: string | null; is_self: boolean }[]
+      | null
+  )?.[0];
+  if (!contact?.email) return;
+
   const head = await headers();
   const link = `${head.get("x-forwarded-proto") ?? "https"}://${head.get("host")}/evenementen/${event.id}`;
-  const teammates = (players as { full_name: string }[]).map((p) => p.full_name);
-
-  await Promise.all(
-    (
-      players as {
-        full_name: string;
-        email: string | null;
-        registered_by_name: string | null;
-        is_self: boolean;
-      }[]
-    )
-      .filter((p) => p.email)
-      .map((p) => {
-        const partner = teammates.find((name) => name !== p.full_name);
-        const lines = [
-          `Dag ${p.full_name},`,
-          "",
-          `Je bent ingeschreven voor ${event.title} op ${formatDateTime(event.starts_at)}, ` +
-            `in de reeks ${categoryLabel(category)}` +
-            (partner ? `, samen met ${partner}.` : "."),
-          p.registered_by_name && !p.is_self ? `${p.registered_by_name} schreef je in.` : "",
-          "",
-          `Bekijk wie er nog meedoet: ${link}`,
-          "",
-          "Sportieve groeten,",
-          "TC Sint-Michiels",
-        ];
-        return sendMail(p.email!, `Ingeschreven: ${event.title}`, lines.join("\n"));
-      }),
-  );
+  const lines = [
+    `Dag ${contact.full_name},`,
+    "",
+    `${event.title}, ${formatDateTime(event.starts_at)}.`,
+    summary,
+    contact.registered_by_name && !contact.is_self
+      ? `${contact.registered_by_name} schreef je in.`
+      : "",
+    "",
+    `Bekijk wie er nog meedoet of pas je inschrijving aan: ${link}`,
+    "",
+    "Sportieve groeten,",
+    "TC Sint-Michiels",
+  ];
+  await sendMail(contact.email, `Inschrijving: ${event.title}`, lines.join("\n"));
 }

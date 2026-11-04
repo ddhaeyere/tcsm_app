@@ -4,41 +4,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { ActionState } from "@/components/forms";
 import { requireOrganiser } from "@/lib/auth";
-import { CATEGORY_CHOICES, brusselsInputToIso } from "@/lib/format";
+import { brusselsInputToIso } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
-import { RANKINGS } from "@/lib/rankings";
-import { SERIES_GENDERS } from "@/lib/series";
-import type { PlayFormat, SeriesGender, Sport } from "@/lib/types";
-
-// Reads a category choice such as "padel:doubles"; null when it is not one we offer.
-function readCategoryChoice(value: unknown): [Sport, PlayFormat] | null {
-  const choice = CATEGORY_CHOICES.find((c) => c.value === String(value));
-  return choice ? (choice.value.split(":") as [Sport, PlayFormat]) : null;
-}
-
-// Reads who may play and the maximum ranking of a series; a string is an error.
-function readSeriesRules(
-  formData: FormData,
-  sport: Sport,
-  format: PlayFormat,
-): { gender: SeriesGender | null; max_ranking: string | null } | string {
-  const genderRaw = String(formData.get("gender") ?? "");
-  const gender = SERIES_GENDERS.find((g) => g.value === genderRaw)?.value ?? null;
-  if (gender === "gemengd" && format !== "doubles") return "Gemengd kan alleen in het dubbelspel.";
-
-  const raw = String(formData.get("max_ranking") ?? "").trim().toUpperCase().replace(/\s*P(TN)?\.?$/, "");
-  if (!raw) return { gender, max_ranking: null };
-  if (sport === "tennis") {
-    const points = Number(raw);
-    if (!Number.isInteger(points) || points < 1)
-      return "Het maximumklassement voor tennis is een aantal punten, bv. 30.";
-    return { gender, max_ranking: String(points) };
-  }
-  const level = raw.startsWith("P") ? raw : `P${raw}`;
-  if (!RANKINGS.padel.includes(level))
-    return `Het maximumklassement voor padel is een niveau: ${RANKINGS.padel.join(", ")}.`;
-  return { gender, max_ranking: level };
-}
 
 function refresh(eventId?: string) {
   revalidatePath("/");
@@ -56,6 +23,11 @@ type EventFields = {
   starts_at: string;
   ends_at: string | null;
   registration_deadline: string | null;
+  has_tennis: boolean;
+  has_padel: boolean;
+  max_tennis: number | null;
+  max_padel: number | null;
+  catering: string | null;
 };
 
 function readEventFields(formData: FormData): EventFields | string {
@@ -71,6 +43,18 @@ function readEventFields(formData: FormData): EventFields | string {
   if (endsAt && endsAt < startsAt) return "Het einde ligt voor het begin.";
   if (deadline && deadline > startsAt) return "De inschrijvingen moeten sluiten voor het begin.";
 
+  const hasTennis = formData.get("has_tennis") === "on";
+  const hasPadel = formData.get("has_padel") === "on";
+  if (!hasTennis && !hasPadel) return "Kies tennis, padel of allebei.";
+  const maxTennis = hasTennis ? readMax(formData.get("max_tennis")) : null;
+  const maxPadel = hasPadel ? readMax(formData.get("max_padel")) : null;
+  if (typeof maxTennis === "string") return maxTennis;
+  if (typeof maxPadel === "string") return maxPadel;
+
+  const hasCatering = formData.get("has_catering") === "on";
+  const catering = String(formData.get("catering") ?? "").trim();
+  if (hasCatering && !catering) return "Geef de catering een naam, bv. Barbecue.";
+
   return {
     title,
     description: String(formData.get("description") ?? "").trim() || null,
@@ -78,10 +62,15 @@ function readEventFields(formData: FormData): EventFields | string {
     starts_at: startsAt,
     ends_at: endsAt,
     registration_deadline: deadline,
+    has_tennis: hasTennis,
+    has_padel: hasPadel,
+    max_tennis: maxTennis,
+    max_padel: maxPadel,
+    catering: hasCatering ? catering : null,
   };
 }
 
-function readMaxPlayers(value: FormDataEntryValue | null): number | null | string {
+function readMax(value: FormDataEntryValue | null): number | null | string {
   const raw = String(value ?? "").trim();
   if (!raw) return null;
   const n = Number(raw);
@@ -113,6 +102,19 @@ export async function updateEvent(_: ActionState, formData: FormData): Promise<A
   if (typeof fields === "string") return { error: fields };
 
   const supabase = await createClient();
+  const { data: registrations } = await supabase
+    .from("registrations")
+    .select("tennis, padel, eats")
+    .eq("event_id", eventId);
+  const count = (key: "tennis" | "padel" | "eats") =>
+    (registrations ?? []).filter((r) => r[key]).length;
+  if (!fields.has_tennis && count("tennis") > 0)
+    return { error: `Er zijn al ${count("tennis")} tennisspelers ingeschreven; tennis kan niet weg.` };
+  if (!fields.has_padel && count("padel") > 0)
+    return { error: `Er zijn al ${count("padel")} padelspelers ingeschreven; padel kan niet weg.` };
+  if (!fields.catering && count("eats") > 0)
+    return { error: `Er eten al ${count("eats")} mensen mee; de catering kan niet weg.` };
+
   const { error } = await supabase.from("events").update(fields).eq("id", eventId);
   if (error) return { error: "Opslaan lukte niet." };
 
@@ -129,111 +131,4 @@ export async function deleteEvent(_: ActionState, formData: FormData): Promise<A
 
   refresh();
   redirect("/beheer");
-}
-
-export async function addCategory(_: ActionState, formData: FormData): Promise<ActionState> {
-  await requireOrganiser();
-  const eventId = String(formData.get("event_id"));
-  const choice = readCategoryChoice(formData.get("category"));
-  const label = String(formData.get("label") ?? "").trim() || null;
-  const maxPlayers = readMaxPlayers(formData.get("max_players"));
-
-  if (!choice) return { error: "Kies tennis dubbel, tennis enkel of padel." };
-  const [sport, format] = choice;
-  if (typeof maxPlayers === "string") return { error: maxPlayers };
-  const rules = readSeriesRules(formData, sport, format);
-  if (typeof rules === "string") return { error: rules };
-
-  const supabase = await createClient();
-  const { count } = await supabase
-    .from("event_categories")
-    .select("id", { count: "exact", head: true })
-    .eq("event_id", eventId);
-  const { error } = await supabase.from("event_categories").insert({
-    event_id: eventId,
-    sport,
-    format,
-    label,
-    ...rules,
-    max_players: maxPlayers,
-    position: count ?? 0,
-  });
-  if (error) return { error: "Reeks toevoegen lukte niet." };
-
-  refresh(eventId);
-  return {};
-}
-
-export async function updateCategory(_: ActionState, formData: FormData): Promise<ActionState> {
-  await requireOrganiser();
-  const eventId = String(formData.get("event_id"));
-  const label = String(formData.get("label") ?? "").trim() || null;
-  const maxPlayers = readMaxPlayers(formData.get("max_players"));
-  if (typeof maxPlayers === "string") return { error: maxPlayers };
-
-  const supabase = await createClient();
-  const categoryId = String(formData.get("category_id"));
-  const { data: category } = await supabase
-    .from("event_categories")
-    .select("sport, format")
-    .eq("id", categoryId)
-    .single();
-  if (!category) return { error: "Reeks niet gevonden." };
-  const rules = readSeriesRules(formData, category.sport, category.format);
-  if (typeof rules === "string") return { error: rules };
-
-  const { error } = await supabase
-    .from("event_categories")
-    .update({ label, ...rules, max_players: maxPlayers })
-    .eq("id", categoryId);
-  // P0001: a rule the existing registrations break, explained by the database.
-  if (error) return { error: error.code === "P0001" ? error.message : "Opslaan lukte niet." };
-
-  refresh(eventId);
-  revalidatePath(`/beheer/evenementen/${eventId}/reeksen/${categoryId}`);
-  return { message: "Opgeslagen." };
-}
-
-export async function deleteCategory(_: ActionState, formData: FormData): Promise<ActionState> {
-  await requireOrganiser();
-  const eventId = String(formData.get("event_id"));
-  const supabase = await createClient();
-  const { error } = await supabase
-    .from("event_categories")
-    .delete()
-    .eq("id", String(formData.get("category_id")));
-  if (error) return { error: "Verwijderen lukte niet." };
-
-  refresh(eventId);
-  redirect(`/beheer/evenementen/${eventId}`);
-}
-
-export async function pairEntries(_: ActionState, formData: FormData): Promise<ActionState> {
-  const eventId = String(formData.get("event_id"));
-  const first = String(formData.get("first") ?? "");
-  const second = String(formData.get("second") ?? "");
-  if (!first || !second) return { error: "Kies twee spelers." };
-
-  const supabase = await createClient();
-  const { error } = await supabase.rpc("organiser_pair_entries", {
-    p_entry_id: first,
-    p_other_entry_id: second,
-  });
-  if (error) return { error: error.message };
-
-  refresh(eventId);
-  return {};
-}
-
-export async function splitEntry(_: ActionState, formData: FormData): Promise<ActionState> {
-  const eventId = String(formData.get("event_id"));
-  const supabase = await createClient();
-  const { error } = await supabase.rpc("organiser_split_entry", {
-    p_entry_id: String(formData.get("entry_id")),
-    p_member_id: String(formData.get("member_id")),
-  });
-  if (error) return { error: error.message };
-
-  refresh(eventId);
-  return {};
 }

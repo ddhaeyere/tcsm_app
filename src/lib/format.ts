@@ -1,37 +1,12 @@
-import type { Category, PlayFormat, Sport } from "./types";
+import type { Sport } from "./types";
 
 export const TIME_ZONE = "Europe/Brussels";
 
 const SPORT_LABELS: Record<Sport, string> = { tennis: "Tennis", padel: "Padel" };
-const FORMAT_LABELS: Record<PlayFormat, string> = { singles: "enkel", doubles: "dubbel" };
 
 export function sportLabel(sport: Sport): string {
   return SPORT_LABELS[sport];
 }
-
-// E.g. "Tennis dubbel dames tot 30p" or "Padel gemengd tot P300 · Clubkampioenschap".
-export function categoryLabel(
-  category: Pick<Category, "sport" | "format" | "label" | "gender" | "max_ranking">,
-): string {
-  // Padel is always doubles, so it needs no "dubbel".
-  const parts = [
-    category.sport === "padel"
-      ? SPORT_LABELS.padel
-      : `${SPORT_LABELS[category.sport]} ${FORMAT_LABELS[category.format]}`,
-  ];
-  if (category.gender) parts.push(category.gender);
-  if (category.max_ranking)
-    parts.push(`tot ${category.sport === "tennis" ? `${category.max_ranking}p` : category.max_ranking}`);
-  const base = parts.join(" ");
-  return category.label ? `${base} · ${category.label}` : base;
-}
-
-// The categories an organiser can pick. Padel is always played as doubles.
-export const CATEGORY_CHOICES: { value: `${Sport}:${PlayFormat}`; label: string }[] = [
-  { value: "tennis:doubles", label: "Tennis dubbel" },
-  { value: "tennis:singles", label: "Tennis enkel" },
-  { value: "padel:doubles", label: "Padel" },
-];
 
 export function plural(n: number, one: string, many: string): string {
   return `${n} ${n === 1 ? one : many}`;

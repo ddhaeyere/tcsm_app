@@ -16,14 +16,15 @@ screen. Plan and decisions: [TCSM club app plan](https://claude.ai/code/artifact
   other accounts wait for an admin. The very first account becomes an admin.
 - **Roles**: member (registers) and admin (manages events, the member list and
   accounts). The database also knows an "organiser" role that may manage events.
-- **Events**: an organiser creates an event with one or more categories, each a
-  sport (tennis or padel) and a format (singles or doubles), optionally with an
-  extra name ("Gemengd") and a maximum number of players.
+- **Events**: an organiser creates an event and ticks whether it offers tennis,
+  padel or both, each with an optional maximum number of players, and
+  optionally a meal to register for ("catering", e.g. Barbecue).
 - **Registrations**: anyone with an account registers themselves or any other
-  member, per category; doubles with a partner or alone as "looking for a
-  partner", and anyone can add a partner later. A member can be in a category
-  only once. The ranking comes from the member list and is kept with the
-  registration. Every registered member with an email address gets a mail.
+  member, once per event: tennis and/or padel, and whether they eat along.
+  The registration can be changed or cancelled until the deadline. Who
+  registers for a sport that is full lands on its reserve list, in order of
+  registration, and moves up when someone drops out. Everyone sees who plays
+  and who eats along. Every registered member with an email address gets a mail.
 - **Motivation**: the event list shows how many players and who already joined.
 
 ## Stack
