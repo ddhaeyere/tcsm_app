@@ -31,6 +31,7 @@ export function RegistrationForm({
   tennis,
   padel,
   catering,
+  closed,
   eaters,
 }: {
   eventId: string;
@@ -41,6 +42,8 @@ export function RegistrationForm({
   tennis: SportState;
   padel: SportState;
   catering: string | null;
+  // Closed by an organiser: new players go on the reserve list.
+  closed: boolean;
   eaters: string[];
 }) {
   const [state, formAction] = useActionState(saveRegistration, {});
@@ -56,7 +59,9 @@ export function RegistrationForm({
           ? `Op de reservelijst (plaats ${mine.reserve[sport]})`
           : s.max === null
             ? `${s.players} ingeschreven`
-            : full && !mine?.[sport]
+            : closed && !mine?.[sport]
+              ? "Inschrijvingen afgesloten: je komt op de reservelijst"
+              : full && !mine?.[sport]
               ? "Volzet: je komt op de reservelijst"
               : `${Math.min(s.players, s.max)}/${s.max} plaatsen bezet`}
       </Choice>

@@ -71,6 +71,7 @@ export function RegisterCard({
         tennis={sportState("tennis")}
         padel={sportState("padel")}
         catering={event.catering}
+        closed={event.registrations_closed_at !== null}
         eaters={eaters(event).map((r) => r.member?.full_name ?? "Onbekend")}
       />
     </Card>
