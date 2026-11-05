@@ -62,7 +62,7 @@ export default async function EditMemberPage({ params }: PageProps<"/beheer/lede
                 className={inputClass}
               />
             </Field>
-            <Field label="E-mailadres" hint="Hiermee wordt het lid aan een account gekoppeld.">
+            <Field label="E-mailadres" hint="Hiermee wordt het lid aan een account gekoppeld. Delen meerdere leden dit adres, dan krijgt maar één van hen het account: wie dezelfde naam heeft als het account, anders de oudste.">
               <input name="email" type="email" defaultValue={member.email ?? ""} className={inputClass} />
             </Field>
             <RankingField

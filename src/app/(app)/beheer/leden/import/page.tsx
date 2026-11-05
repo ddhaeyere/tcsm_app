@@ -47,9 +47,10 @@ export default async function ImportMembersPage() {
             />
           </Field>
           <p className="text-sm text-stone-600">
-            Een lid dat al bestaat (zelfde e-mailadres, of anders zelfde naam en voornaam) wordt
-            bijgewerkt met de gegevens uit de lijst, bv. nieuwe klassementen. Lege cellen laten de
-            bestaande gegevens ongemoeid.
+            Een lid dat al bestaat (zelfde e-mailadres, naam en voornaam, of anders zelfde naam en
+            voornaam) wordt bijgewerkt met de gegevens uit de lijst, bv. nieuwe klassementen. Lege
+            cellen laten de bestaande gegevens ongemoeid. Meerdere leden mogen hetzelfde
+            e-mailadres hebben, bv. een ouder en een kind.
           </p>
           <SubmitButton>Importeren</SubmitButton>
         </ActionForm>
