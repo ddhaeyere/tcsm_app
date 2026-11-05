@@ -23,6 +23,15 @@ export function formatDateTime(iso: string): string {
   }).format(new Date(iso));
 }
 
+// "4/11 18:29": short enough for a table column.
+export function formatShortDateTime(iso: string): { date: string; time: string } {
+  const date = new Date(iso);
+  return {
+    date: new Intl.DateTimeFormat("nl-BE", { timeZone: TIME_ZONE, day: "numeric", month: "numeric" }).format(date),
+    time: new Intl.DateTimeFormat("nl-BE", { timeZone: TIME_ZONE, hour: "2-digit", minute: "2-digit" }).format(date),
+  };
+}
+
 export function formatDay(iso: string): { day: string; month: string } {
   const date = new Date(iso);
   return {

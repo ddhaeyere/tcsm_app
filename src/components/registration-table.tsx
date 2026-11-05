@@ -2,9 +2,10 @@
 
 import { Fragment, useEffect, useRef, useState, useTransition, type ReactNode } from "react";
 import { adminDeleteRegistration, adminUpdateRegistration } from "@/app/actions/registrations";
+import { formatDateTime, formatShortDateTime } from "@/lib/format";
 
 type Part = "tennis" | "padel" | "eats";
-type SortKey = "name" | Part;
+type SortKey = "name" | "date" | Part;
 
 export interface TableRegistration {
   id: string;
@@ -20,6 +21,8 @@ export interface TableRegistration {
   order: { tennis: number | null; padel: number | null; eats: number | null };
   // Place on the reserve list, when there.
   reserve: { tennis: number | null; padel: number | null };
+  // When the registration was made (ISO timestamp).
+  registered_at: string;
   // Only filled in for organisers.
   registered_by_name: string | null;
 }
@@ -32,7 +35,7 @@ export interface TablePart {
 }
 
 // Everyone registered for an event in one table: sortable by name or per
-// part (in order of registration), with a search on name. Organisers also
+// part (in order of registration) or by date of registration, with a search on name. Organisers also
 // get a pencil to change the parts and a bin to remove the registration;
 // both ask to confirm.
 export function RegistrationTable({
@@ -58,6 +61,10 @@ export function RegistrationTable({
     .sort((a, b) => {
       const byName = a.full_name.localeCompare(b.full_name, "nl");
       if (sort.key === "name") return sort.desc ? -byName : byName;
+      if (sort.key === "date") {
+        const byDate = Date.parse(a.registered_at) - Date.parse(b.registered_at) || byName;
+        return sort.desc ? -byDate : byDate;
+      }
       // Registered for the part first, in order of registration; the rest
       // after, by name. Descending only flips the registered ones.
       const oa = a.order[sort.key];
@@ -123,6 +130,7 @@ export function RegistrationTable({
                 {parts.map((p) => (
                   <Fragment key={p.part}>{header(p.part, p.label, p.count)}</Fragment>
                 ))}
+                {header("date", "Ingeschreven")}
                 {manage && (
                   <th className="py-2 pl-2">
                     <span className="sr-only">Acties</span>
@@ -158,6 +166,9 @@ export function RegistrationTable({
                       <PartStatus registration={r} part={p.part} />
                     </td>
                   ))}
+                  <td className="px-1 py-2 text-center">
+                    <RegisteredAt iso={r.registered_at} />
+                  </td>
                   {manage && (
                     <td className="py-2 pl-2">
                       <div className="flex flex-col items-end sm:flex-row sm:justify-end">
@@ -187,7 +198,7 @@ export function RegistrationTable({
               ))}
               {shown.length === 0 && (
                 <tr>
-                  <td colSpan={parts.length + 2} className="py-3 text-stone-600">
+                  <td colSpan={parts.length + 3} className="py-3 text-stone-600">
                     Niemand gevonden.
                   </td>
                 </tr>
@@ -219,6 +230,16 @@ export function RegistrationTable({
         />
       )}
     </div>
+  );
+}
+
+function RegisteredAt({ iso }: { iso: string }) {
+  const { date, time } = formatShortDateTime(iso);
+  return (
+    <time dateTime={iso} title={formatDateTime(iso)} className="whitespace-nowrap text-xs text-stone-600">
+      {date}
+      <span className="block text-[11px] text-stone-400">{time}</span>
+    </time>
   );
 }
 

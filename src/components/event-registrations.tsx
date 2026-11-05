@@ -124,6 +124,7 @@ export function RegistrationOverview({
       tennis: reservePlace(event, "tennis", r.member_id),
       padel: reservePlace(event, "padel", r.member_id),
     },
+    registered_at: r.created_at,
     registered_by_name:
       manage && r.registered_by ? (registeredByNames?.get(r.registered_by) ?? null) : null,
   }));
