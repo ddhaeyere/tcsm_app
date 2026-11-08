@@ -244,6 +244,12 @@ otp_expiry = 3600
 # admin_email = "admin@email.com"
 # sender_name = "Admin"
 
+# Branded TCSM confirmation mail. On the hosted project, paste the same subject and
+# template in the dashboard: Authentication > Emails > Templates > Confirm signup.
+[auth.email.template.confirmation]
+subject = "Bevestiging account TC Sint-Michiels (TCSM) event app"
+content_path = "./supabase/templates/confirmation.html"
+
 # Uncomment to customize email template
 # [auth.email.template.invite]
 # subject = "You have been invited"
