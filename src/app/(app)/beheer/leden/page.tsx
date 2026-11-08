@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { setMemberAdmin, updateAccount } from "@/app/actions/admin";
 import { ActionForm, SubmitButton } from "@/components/forms";
+import { MemberPicker } from "@/components/member-picker";
 import { MemberTable } from "@/components/member-table";
-import { Badge, Card, PageTitle, inputClass } from "@/components/ui";
+import { Badge, Card, PageTitle } from "@/components/ui";
 import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import type { ClubMember, UserRole } from "@/lib/types";
@@ -105,25 +106,22 @@ export default async function MemberListPage() {
 
         <ActionForm action={setMemberAdmin} className="mt-3 flex flex-wrap items-center gap-2 border-t border-stone-100 pt-3">
           <input type="hidden" name="role" value="admin" />
-          <select
+          <MemberPicker
             name="member_id"
             required
-            defaultValue=""
-            aria-label="Lid dat beheerder wordt"
-            className={`${inputClass} mt-0 w-auto min-w-56 py-1.5 text-sm`}
-          >
-            <option value="" disabled>
-              Kies een lid…
-            </option>
-            {members
+            label="Lid dat beheerder wordt"
+            placeholder="Zoek een lid…"
+            className="min-w-64 flex-1 sm:flex-none [&_input]:mt-0 [&_input]:py-1.5 [&_input]:text-sm"
+            options={members
               .filter((m) => !isAdminMember(m))
-              .map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.last_name} {m.first_name}
-                  {m.profile_id ? "" : " (nog geen account)"}
-                </option>
-              ))}
-          </select>
+              .map((m) => ({
+                id: m.id,
+                label: `${m.last_name} ${m.first_name}`,
+                first_name: m.first_name,
+                last_name: m.last_name,
+                hint: m.profile_id ? undefined : "nog geen account",
+              }))}
+          />
           <SubmitButton variant="secondary">Beheerder maken</SubmitButton>
         </ActionForm>
       </Card>

@@ -49,9 +49,18 @@ export function RegisterCard({
   const pickMe = me && (!registered.has(me.id) || current[me.id]) ? me : null;
   const others = members
     .filter((m) => m.id !== me?.id && (!registered.has(m.id) || current[m.id]))
-    .map((m) => ({ id: m.id, full_name: m.full_name }));
+    .map((m) => ({ id: m.id, full_name: m.full_name, first_name: m.first_name, last_name: m.last_name }));
   const choosable = pickMe
-    ? [{ id: pickMe.id, full_name: `${pickMe.full_name} (ikzelf)` }, ...others]
+    ? [
+        {
+          id: pickMe.id,
+          full_name: pickMe.full_name,
+          first_name: pickMe.first_name,
+          last_name: pickMe.last_name,
+          me: true,
+        },
+        ...others,
+      ]
     : others;
 
   const sportState = (sport: Sport) => ({
