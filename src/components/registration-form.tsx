@@ -3,7 +3,8 @@
 import { useActionState, useState } from "react";
 import { saveRegistration } from "@/app/actions/registrations";
 import { SubmitButton } from "@/components/forms";
-import { Field, inputClass } from "@/components/ui";
+import { MemberPicker } from "@/components/member-picker";
+import { Field } from "@/components/ui";
 
 export interface CurrentChoice {
   registration_id: string;
@@ -35,7 +36,7 @@ export function RegistrationForm({
   eaters,
 }: {
   eventId: string;
-  members: { id: string; full_name: string }[];
+  members: { id: string; full_name: string; first_name: string; last_name: string; me?: boolean }[];
   defaultMemberId: string;
   // The registrations this account may change, by member.
   current: Record<string, CurrentChoice>;
@@ -74,23 +75,19 @@ export function RegistrationForm({
       {mine && <input type="hidden" name="registration_id" value={mine.registration_id} />}
 
       <Field label="Wie schrijf je in?">
-        <select
+        <MemberPicker
           name="member_id"
           value={memberId}
-          onChange={(e) => setMemberId(e.target.value)}
+          onChange={setMemberId}
           required
-          className={inputClass}
-        >
-          <option value="" disabled>
-            Kies een lid
-          </option>
-          {members.map((m) => (
-            <option key={m.id} value={m.id}>
-              {m.full_name}
-              {current[m.id] ? " (ingeschreven)" : ""}
-            </option>
-          ))}
-        </select>
+          options={members.map((m) => ({
+            id: m.id,
+            label: m.full_name,
+            first_name: m.first_name,
+            last_name: m.last_name,
+            hint: [m.me && "ikzelf", current[m.id] && "ingeschreven"].filter(Boolean).join(", ") || undefined,
+          }))}
+        />
       </Field>
 
       {/* Remount when the member or their registration changes, so the boxes show it. */}
