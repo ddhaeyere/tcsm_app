@@ -113,6 +113,9 @@ export function MemberTable({ members }: { members: TableMember[] }) {
         aria-label="Zoek op naam"
         className="mb-3 block w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-base focus:border-club-600 focus:outline-none focus:ring-2 focus:ring-club-200"
       />
+      <p className="mb-3 text-xs text-stone-600">
+        Klik op een naam om naam, voornaam, e-mailadres, geboortedatum of klassementen aan te passen.
+      </p>
 
       <div className="-mx-4 overflow-x-auto px-4">
         <table className="w-full text-sm">
@@ -131,6 +134,13 @@ export function MemberTable({ members }: { members: TableMember[] }) {
                 <td className="py-2 pr-2">
                   <Link href={`/beheer/leden/${m.id}`} className="font-medium text-club-800 underline">
                     {m.name}
+                  </Link>
+                  <Link
+                    href={`/beheer/leden/${m.id}`}
+                    aria-label={`${m.name} bewerken`}
+                    className="ml-2 text-xs text-club-700 hover:underline"
+                  >
+                    ✎ bewerken
                   </Link>
                   <span className="block text-xs text-stone-600">{m.email ?? "geen e-mailadres"}</span>
                   {m.is_admin ? (
