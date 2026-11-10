@@ -14,23 +14,26 @@ function since(r: Registration, sport: Sport): string | null {
   return sport === "tennis" ? r.tennis_since : r.padel_since;
 }
 
-// Who plays the sport, in order of registration, split at the maximum: the
-// rest is the reserve list. Someone dropping out moves the first reserve up.
-// Once an organiser closed the registrations, whoever signed up after that
-// is always a reserve, behind those already on the list.
+// Who plays the sport, split at the maximum: the rest is the reserve list.
+// The order is that of the first registration for the event: adding or
+// dropping a sport later on doesn't change someone's place. Someone dropping
+// out moves the first reserve up. Once an organiser closed the registrations,
+// whoever took up a sport after that is always a reserve, behind those
+// already on the list, in the order they took it up.
 export function sportLists(
   event: ClubEvent,
   sport: Sport,
 ): { players: Registration[]; reserves: Registration[] } {
+  const closedAt = event.registrations_closed_at ? Date.parse(event.registrations_closed_at) : null;
+  const late = (r: Registration) => closedAt !== null && Date.parse(since(r, sport)!) > closedAt;
+  const key = (r: Registration) => Date.parse(late(r) ? since(r, sport)! : r.created_at);
   const all = event.registrations
     .filter((r) => since(r, sport) !== null)
     .sort(
       (a, b) =>
-        Date.parse(since(a, sport)!) - Date.parse(since(b, sport)!) || a.id.localeCompare(b.id),
+        Number(late(a)) - Number(late(b)) || key(a) - key(b) || a.id.localeCompare(b.id),
     );
-  const closedAt = event.registrations_closed_at ? Date.parse(event.registrations_closed_at) : null;
-  const inTime =
-    closedAt === null ? all.length : all.filter((r) => Date.parse(since(r, sport)!) <= closedAt).length;
+  const inTime = all.filter((r) => !late(r)).length;
   const places = Math.min(maxPlayers(event, sport) ?? Infinity, inTime);
   return { players: all.slice(0, places), reserves: all.slice(places) };
 }
