@@ -318,7 +318,6 @@ function EditDialog({
     .filter((p) => choice[p.part] !== r[p.part])
     .map((p) => ({ label: p.label, on: choice[p.part], part: p.part }));
   const nothingLeft = !choice.tennis && !choice.padel && !choice.eats;
-  const rejoins = changes.filter((c) => c.on && c.part !== "eats");
 
   const save = () =>
     startTransition(async () => {
@@ -400,12 +399,6 @@ function EditDialog({
               </li>
             ))}
           </ul>
-          {rejoins.length > 0 && (
-            <p className="mt-3 rounded-lg bg-amber-50 p-3 text-xs text-amber-900">
-              Wie opnieuw ingeschreven wordt voor een sport, sluit achteraan aan. Is die sport
-              volzet of zijn de inschrijvingen afgesloten, dan komt {r.full_name} op de reservelijst.
-            </p>
-          )}
           <div className="mt-5 flex justify-end gap-2">
             <button
               type="button"
