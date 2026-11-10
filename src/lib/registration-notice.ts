@@ -4,7 +4,7 @@ import { sendMail } from "./mail";
 import { SPORTS, describeChoice, reservePlace } from "./registrations";
 import type { ClubEvent } from "./types";
 
-// Mails every admin that someone registered for an event. The database makes
+// Mails the admins who asked for it (notify_registrations) that someone registered for an event. The database makes
 // sure this happens only once per registration, so it is safe to call after
 // every save: changing a registration later sends nothing.
 export async function notifyAdminsOfRegistration(

@@ -8,7 +8,15 @@ alter table public.registrations
 -- Registrations that already exist count as announced.
 update public.registrations set admins_notified_at = created_at;
 
--- Returns one row per admin to mail, and nothing when this registration was
+-- Only admins who ask for it get these mails. For now that is Dieter.
+alter table public.profiles
+  add column notify_registrations boolean not null default false;
+
+update public.profiles
+set notify_registrations = true
+where email = 'dieter.dhaeyere@gmail.com';
+
+-- Returns one row per admin to mail (approved, with notify_registrations on), and nothing when this registration was
 -- already announced, is older than five minutes, or was not made by the
 -- caller. The admin who made the registration gets no mail about it.
 create function public.claim_registration_notice(p_registration_id uuid)
@@ -42,7 +50,7 @@ begin
     cross join public.club_members m
     cross join public.events e
     left join public.profiles p on p.id = auth.uid()
-    where a.role = 'admin' and a.status = 'approved'
+    where a.role = 'admin' and a.status = 'approved' and a.notify_registrations
       and a.id <> auth.uid()
       and m.id = reg.member_id
       and e.id = reg.event_id;
