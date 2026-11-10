@@ -5,6 +5,7 @@ import { headers } from "next/headers";
 import type { ActionState } from "@/components/forms";
 import { formatDateTime, sportLabel } from "@/lib/format";
 import { sendMail } from "@/lib/mail";
+import { notifyAdminsOfRegistration } from "@/lib/registration-notice";
 import { SPORTS, describeChoice, reservePlace } from "@/lib/registrations";
 import { createClient } from "@/lib/supabase/server";
 import { EVENT_SELECT, type ClubEvent } from "@/lib/types";
@@ -54,7 +55,13 @@ export async function saveRegistration(_: ActionState, formData: FormData): Prom
   const event = data as unknown as ClubEvent | null;
   const summary = event ? statusText(event, memberId, choice) : "Opgeslagen.";
 
-  if (event) await mailMember(registrationId as string, event, summary);
+  if (event) {
+    const origin = await siteOrigin();
+    await Promise.all([
+      mailMember(registrationId as string, event, summary, origin),
+      notifyAdminsOfRegistration(supabase, registrationId as string, event, memberId, choice, origin),
+    ]);
+  }
   refresh(eventId);
   return { message: summary };
 }
@@ -86,8 +93,13 @@ function statusText(
   return lines.join(" ");
 }
 
+async function siteOrigin(): Promise<string> {
+  const head = await headers();
+  return `${head.get("x-forwarded-proto") ?? "https"}://${head.get("host")}`;
+}
+
 // Lets the member know they are registered, and by whom.
-async function mailMember(registrationId: string, event: ClubEvent, summary: string) {
+async function mailMember(registrationId: string, event: ClubEvent, summary: string, origin: string) {
   const supabase = await createClient();
   const { data } = await supabase.rpc("registration_contact", {
     p_registration_id: registrationId,
@@ -99,8 +111,7 @@ async function mailMember(registrationId: string, event: ClubEvent, summary: str
   )?.[0];
   if (!contact?.email) return;
 
-  const head = await headers();
-  const link = `${head.get("x-forwarded-proto") ?? "https"}://${head.get("host")}/evenementen/${event.id}`;
+  const link = `${origin}/evenementen/${event.id}`;
   const lines = [
     `Dag ${contact.full_name},`,
     "",
