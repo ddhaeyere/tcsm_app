@@ -98,7 +98,8 @@ async function siteOrigin(): Promise<string> {
   return `${head.get("x-forwarded-proto") ?? "https"}://${head.get("host")}`;
 }
 
-// Lets the member know they are registered, and by whom.
+// Confirms the registration to the member: what they registered for, the
+// event's description, and who registered them.
 async function mailMember(registrationId: string, event: ClubEvent, summary: string, origin: string) {
   const supabase = await createClient();
   const { data } = await supabase.rpc("registration_contact", {
@@ -112,21 +113,29 @@ async function mailMember(registrationId: string, event: ClubEvent, summary: str
   if (!contact?.email) return;
 
   const link = `${origin}/evenementen/${event.id}`;
+  const description = event.description?.trim();
   const lines = [
     `Dag ${contact.full_name},`,
     "",
-    `${event.title}, ${formatDateTime(event.starts_at)}.`,
+    `Hierbij bevestigen we je inschrijving voor ${event.title} (${formatDateTime(event.starts_at)}${
+      event.location ? `, ${event.location}` : ""
+    }).`,
     summary,
     contact.registered_by_name && !contact.is_self
       ? `${contact.registered_by_name} schreef je in.`
       : "",
+    ...(description ? ["", description] : []),
     "",
     `Bekijk wie er nog meedoet of pas je inschrijving aan: ${link}`,
     "",
     "Sportieve groeten,",
-    "TC Sint-Michiels",
-  ];
-  await sendMail(contact.email, `Inschrijving: ${event.title}`, lines.join("\n"));
+    "Team TCSM",
+  ].filter((line, i, all) => line !== "" || all[i - 1] !== "");
+  await sendMail(
+    contact.email,
+    `Bevestiging inschrijving TCSM event ${event.title}`,
+    lines.join("\n"),
+  );
 }
 
 // Organisers on the manage page: change what a member registered for. No mail
