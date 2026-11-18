@@ -50,11 +50,14 @@ screen. Plan and decisions: [TCSM club app plan](https://claude.ai/code/artifact
 4. **Mail** (optional): create a [Resend](https://resend.com) account, verify the
    club's domain and add `RESEND_API_KEY` and `MAIL_FROM` in Vercel. Addresses
    ending in `@example.com` never get mail.
+   Under Authentication → Sign In / Providers → Email, switch **Confirm email**
+   off: new accounts then need no mail to be created, and an admin still
+   approves every account before it can do anything.
    Also let Supabase send its auth mails (confirmation, password reset) through
    Resend: in Supabase under Authentication → Emails → SMTP Settings, enable
    custom SMTP with host `smtp.resend.com`, port `465`, user `resend` and the
    Resend API key as password. Without this Supabase sends at most 2 auth mails
-   per hour, so new members get "Account aanmaken lukte niet".
+   per hour, which password reset links need.
 5. **First admin**: sign up yourself right after the first deploy. The first
    account becomes admin; approve everyone else under Beheer → Leden.
 

@@ -57,7 +57,8 @@ export async function saveRegistration(_: ActionState, formData: FormData): Prom
 
   if (event) {
     const origin = await siteOrigin();
-    await Promise.all([
+    // The registration is saved; a mail that fails must not turn that into an error.
+    await Promise.allSettled([
       mailMember(registrationId as string, event, summary, origin),
       notifyAdminsOfRegistration(supabase, registrationId as string, event, memberId, choice, origin),
     ]);

@@ -64,7 +64,9 @@ export async function signup(_: ActionState, formData: FormData): Promise<Action
 
   // Without email confirmation the member is logged in right away.
   if (data.session) {
-    await notifyAdminsOfNewAccount(supabase, await siteOrigin());
+    await notifyAdminsOfNewAccount(supabase, await siteOrigin()).catch((e) =>
+      console.error("New account notice failed:", e),
+    );
     redirect("/wachten");
   }
 
