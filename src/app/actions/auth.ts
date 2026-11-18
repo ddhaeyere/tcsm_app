@@ -53,12 +53,20 @@ export async function signup(_: ActionState, formData: FormData): Promise<Action
     if (error.code === "user_already_exists") {
       return { error: "Er bestaat al een account met dit e-mailadres." };
     }
+    if (error.code === "over_email_send_rate_limit") {
+      return {
+        error:
+          "Er werden net te veel bevestigingsmails verstuurd. Probeer het over een uur opnieuw.",
+      };
+    }
     return { error: "Account aanmaken lukte niet. Probeer het later opnieuw." };
   }
 
   // Without email confirmation the member is logged in right away.
   if (data.session) {
-    await notifyAdminsOfNewAccount(supabase, await siteOrigin());
+    await notifyAdminsOfNewAccount(supabase, await siteOrigin()).catch((e) =>
+      console.error("New account notice failed:", e),
+    );
     redirect("/wachten");
   }
 

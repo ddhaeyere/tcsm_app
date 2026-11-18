@@ -26,7 +26,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL("/login?fout=link", origin));
   }
   // A freshly confirmed account that waits for approval: let the admins know.
-  if (type !== "recovery") await notifyAdminsOfNewAccount(supabase, origin);
+  if (type !== "recovery") {
+    await notifyAdminsOfNewAccount(supabase, origin).catch((e) =>
+      console.error("New account notice failed:", e),
+    );
+  }
 
   const destination = type === "recovery" ? "/nieuw-wachtwoord" : next;
   return NextResponse.redirect(new URL(destination, origin));
