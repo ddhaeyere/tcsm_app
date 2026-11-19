@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import type { ActionState } from "@/components/forms";
 import { requireOrganiser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import type { SportSetup } from "@/lib/planning";
 import type { PlanningMatch } from "@/lib/types";
 
 function refresh(eventId: string) {
@@ -13,29 +14,35 @@ function refresh(eventId: string) {
 const MAX_SLOTS = 50;
 const MAX_COURTS = 30;
 
-// Saves the whole planning of an event: slots, courts and every match.
+// Saves the whole planning of an event: per sport the slots, slot names and
+// courts, and every match.
 export async function savePlanning(input: {
   eventId: string;
-  slots: number;
-  tennisCourts: number;
-  padelCourts: number;
-  slotLabels: string[];
+  tennis: SportSetup;
+  padel: SportSetup;
   matches: PlanningMatch[];
 }): Promise<ActionState> {
   await requireOrganiser();
-  const whole = (n: number, min: number, max: number) => Number.isInteger(n) && n >= min && n <= max;
-  if (!whole(input.slots, 1, MAX_SLOTS)) return { error: `Kies 1 tot ${MAX_SLOTS} tijdsslots.` };
-  if (!whole(input.tennisCourts, 0, MAX_COURTS) || !whole(input.padelCourts, 0, MAX_COURTS))
-    return { error: `Kies 0 tot ${MAX_COURTS} velden.` };
-  if (input.tennisCourts + input.padelCourts === 0) return { error: "Kies minstens één veld." };
+  const whole = (n: number, max: number) => Number.isInteger(n) && n >= 0 && n <= max;
+  for (const setup of [input.tennis, input.padel]) {
+    if (!whole(setup.slots, MAX_SLOTS)) return { error: `Kies 0 tot ${MAX_SLOTS} tijdsslots.` };
+    if (!whole(setup.courts, MAX_COURTS)) return { error: `Kies 0 tot ${MAX_COURTS} velden.` };
+  }
+  const used = [input.tennis, input.padel].filter((s) => s.slots > 0 && s.courts > 0);
+  if (used.length === 0) return { error: "Kies minstens één tijdsslot en één veld." };
+
+  const labels = (setup: SportSetup) =>
+    Array.from({ length: setup.slots }, (_, i) => (setup.labels[i] ?? "").trim());
 
   const supabase = await createClient();
   const { error } = await supabase.rpc("save_event_planning", {
     p_event_id: input.eventId,
-    p_slots: input.slots,
-    p_tennis_courts: input.tennisCourts,
-    p_padel_courts: input.padelCourts,
-    p_slot_labels: input.slotLabels.slice(0, input.slots).map((l) => l.trim()),
+    p_tennis_slots: input.tennis.slots,
+    p_padel_slots: input.padel.slots,
+    p_tennis_courts: input.tennis.courts,
+    p_padel_courts: input.padel.courts,
+    p_tennis_slot_labels: labels(input.tennis),
+    p_padel_slot_labels: labels(input.padel),
     p_matches: input.matches.filter((m) => m.side_a.length || m.side_b.length),
   });
   if (error) return { error: error.message || "Opslaan lukte niet." };

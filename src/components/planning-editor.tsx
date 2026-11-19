@@ -5,7 +5,14 @@ import { savePlanning, setPlanningReleased } from "@/app/actions/planning";
 import type { ActionState } from "@/components/forms";
 import { Card, Field, inputClass } from "@/components/ui";
 import { formatDateTime, sportLabel } from "@/lib/format";
-import { matchKey, planningCourts, type PlanningPlayer } from "@/lib/planning";
+import {
+  courtLabel,
+  matchKey,
+  range,
+  sportSetup,
+  type PlanningPlayer,
+  type SportSetup,
+} from "@/lib/planning";
 import type { EventPlanning, PlanningMatch, Sport } from "@/lib/types";
 
 // Four places per match: two per side. Empty string means nobody.
@@ -14,9 +21,9 @@ const EMPTY: Places = ["", "", "", ""];
 
 const BUTTON = "inline-flex min-h-10 items-center justify-center rounded-lg px-4 text-sm font-semibold transition disabled:opacity-60";
 
-// The planning for organisers: set the number of time slots and courts, then
-// pick per slot and court who plays whom. Saving stores everything at once;
-// releasing shows the saved planning to every member.
+// The planning for organisers: per sport the number of time slots and
+// courts, then per slot and court who plays whom. Saving stores everything
+// at once; releasing shows the saved planning to every member.
 export function PlanningEditor({
   eventId,
   planning,
@@ -30,14 +37,15 @@ export function PlanningEditor({
   players: Record<Sport, PlanningPlayer[]>;
   sports: Sport[];
 }) {
-  const [slots, setSlots] = useState(planning?.slots ?? 4);
-  const [tennisCourts, setTennisCourts] = useState(
-    planning?.tennis_courts ?? (sports.includes("tennis") ? 2 : 0),
-  );
-  const [padelCourts, setPadelCourts] = useState(
-    planning?.padel_courts ?? (sports.includes("padel") ? 2 : 0),
-  );
-  const [labels, setLabels] = useState<string[]>(planning?.slot_labels ?? []);
+  const [setups, setSetups] = useState<Record<Sport, SportSetup>>(() => {
+    const initial = (sport: Sport): SportSetup =>
+      planning
+        ? sportSetup(planning, sport)
+        : sports.includes(sport)
+          ? { slots: 4, courts: 2, labels: [] }
+          : { slots: 0, courts: 0, labels: [] };
+    return { tennis: initial("tennis"), padel: initial("padel") };
+  });
   const [places, setPlaces] = useState<Record<string, Places>>(() =>
     Object.fromEntries(
       matches.map((m) => [
@@ -50,8 +58,10 @@ export function PlanningEditor({
   const [pending, startTransition] = useTransition();
   const [result, setResult] = useState<ActionState>({});
 
-  const courts = planningCourts({ tennis_courts: tennisCourts, padel_courts: padelCourts });
-  const slotList = Array.from({ length: slots }, (_, i) => i + 1);
+  // Sports shown: those the event offers, plus any that still has courts.
+  const shownSports = (["tennis", "padel"] as Sport[]).filter(
+    (s) => sports.includes(s) || setups[s].courts > 0,
+  );
   const names = useMemo(
     () => new Map([...players.tennis, ...players.padel].map((p) => [p.member_id, p.name])),
     [players],
@@ -62,6 +72,8 @@ export function PlanningEditor({
     setDirty(true);
     setResult({});
   };
+  const setSetup = (sport: Sport, patch: Partial<SportSetup>) =>
+    change(() => setSetups((all) => ({ ...all, [sport]: { ...all[sport], ...patch } })));
   const setPlace = (key: string, index: number, memberId: string) =>
     change(() =>
       setPlaces((all) => {
@@ -72,36 +84,35 @@ export function PlanningEditor({
     );
 
   // Matches inside the current slots and courts, as the database stores them.
-  const currentMatches: PlanningMatch[] = slotList.flatMap((slot) =>
-    courts.flatMap(({ sport, court }) => {
-      const p = places[matchKey({ slot, sport, court })] ?? EMPTY;
-      const side_a = [p[0], p[1]].filter(Boolean);
-      const side_b = [p[2], p[3]].filter(Boolean);
-      return side_a.length || side_b.length ? [{ slot, sport, court, side_a, side_b }] : [];
-    }),
+  const currentMatches: PlanningMatch[] = (["tennis", "padel"] as Sport[]).flatMap((sport) =>
+    range(setups[sport].slots).flatMap((slot) =>
+      range(setups[sport].courts).flatMap((court) => {
+        const p = places[matchKey({ slot, sport, court })] ?? EMPTY;
+        const side_a = [p[0], p[1]].filter(Boolean);
+        const side_b = [p[2], p[3]].filter(Boolean);
+        return side_a.length || side_b.length ? [{ slot, sport, court, side_a, side_b }] : [];
+      }),
+    ),
   );
 
-  // Who is planned twice in the same slot, and how often everyone plays.
+  // Who is planned twice in the same slot of a sport, and how often everyone plays.
   const doubleBooked = new Set<string>();
   const matchCount = new Map<string, number>();
-  for (const slot of slotList) {
-    const seen = new Set<string>();
-    for (const m of currentMatches.filter((m) => m.slot === slot))
-      for (const id of [...m.side_a, ...m.side_b]) {
-        if (seen.has(id)) doubleBooked.add(`${slot}-${id}`);
-        seen.add(id);
-        matchCount.set(id, (matchCount.get(id) ?? 0) + 1);
-      }
-  }
+  const seen = new Set<string>();
+  for (const m of currentMatches)
+    for (const id of [...m.side_a, ...m.side_b]) {
+      const key = `${m.sport}-${m.slot}-${id}`;
+      if (seen.has(key)) doubleBooked.add(key);
+      seen.add(key);
+      matchCount.set(`${m.sport}-${id}`, (matchCount.get(`${m.sport}-${id}`) ?? 0) + 1);
+    }
 
   const save = () =>
     startTransition(async () => {
       const res = await savePlanning({
         eventId,
-        slots,
-        tennisCourts,
-        padelCourts,
-        slotLabels: slotList.map((s) => labels[s - 1] ?? ""),
+        tennis: setups.tennis,
+        padel: setups.padel,
         matches: currentMatches,
       });
       setResult(res);
@@ -117,16 +128,22 @@ export function PlanningEditor({
   };
 
   const released = planning?.released_at ?? null;
-  const number = (value: number, set: (n: number) => void, min: number, max: number) => (
-    <input
-      type="number"
-      inputMode="numeric"
-      min={min}
-      max={max}
-      value={value}
-      onChange={(e) => change(() => set(Math.max(min, Math.min(max, Number(e.target.value) || 0))))}
-      className={inputClass}
-    />
+  const number = (sport: Sport, field: "slots" | "courts", label: string) => (
+    <Field label={label}>
+      <input
+        type="number"
+        inputMode="numeric"
+        min={0}
+        max={field === "slots" ? 50 : 30}
+        value={setups[sport][field]}
+        onChange={(e) =>
+          setSetup(sport, {
+            [field]: Math.max(0, Math.min(field === "slots" ? 50 : 30, Number(e.target.value) || 0)),
+          })
+        }
+        className={inputClass}
+      />
+    </Field>
   );
 
   return (
@@ -161,89 +178,105 @@ export function PlanningEditor({
 
       <Card>
         <h2 className="mb-3 text-lg font-semibold">Tijdsslots en velden</h2>
-        <div className="grid grid-cols-3 gap-3">
-          <Field label="Tijdsslots">{number(slots, setSlots, 1, 50)}</Field>
-          <Field label="Tennisvelden">{number(tennisCourts, setTennisCourts, 0, 30)}</Field>
-          <Field label="Padelvelden">{number(padelCourts, setPadelCourts, 0, 30)}</Field>
+        <div className="space-y-3">
+          {shownSports.map((sport) => (
+            <div key={sport}>
+              <h3 className="text-sm font-semibold text-stone-800">{sportLabel(sport)}</h3>
+              <div className="grid grid-cols-2 gap-3">
+                {number(sport, "slots", "Tijdsslots")}
+                {number(sport, "courts", "Velden")}
+              </div>
+            </div>
+          ))}
         </div>
         <p className="mt-2 text-xs text-stone-500">
           Minder slots of velden kiezen verwijdert bij het opslaan de wedstrijden die erbuiten vallen.
         </p>
       </Card>
 
-      {slotList.map((slot) => (
-        <Card key={slot}>
-          <Field label={`Tijdsslot ${slot}`} hint="Bv. 14:00 of Ronde 1. Leeg laten mag.">
-            <input
-              value={labels[slot - 1] ?? ""}
-              onChange={(e) =>
-                change(() =>
-                  setLabels((all) => {
-                    const next = [...all];
-                    while (next.length < slot) next.push("");
-                    next[slot - 1] = e.target.value;
-                    return next;
-                  }),
-                )
-              }
-              placeholder={`Ronde ${slot}`}
-              maxLength={40}
-              className={inputClass}
-            />
-          </Field>
-          {courts.length === 0 && <p className="mt-3 text-sm text-stone-600">Kies eerst het aantal velden.</p>}
-          <div className="mt-3 space-y-3">
-            {courts.map(({ sport, court, label }) => {
-              const key = matchKey({ slot, sport, court });
-              const p = places[key] ?? EMPTY;
-              const select = (index: number) => {
-                const value = p[index];
-                const clash = value && doubleBooked.has(`${slot}-${value}`);
-                const options = players[sport];
-                return (
-                  <select
-                    aria-label={`${label}, ${index < 2 ? "ploeg 1" : "ploeg 2"}, speler ${(index % 2) + 1}`}
-                    value={value}
-                    onChange={(e) => setPlace(key, index, e.target.value)}
-                    className={`${inputClass} !mt-0 ${clash ? "!border-red-500 !bg-red-50" : ""}`}
-                  >
-                    <option value="">{index % 2 === 0 || sport === "padel" ? "Speler…" : "(geen 2de speler)"}</option>
-                    {value && !options.some((o) => o.member_id === value) && (
-                      <option value={value}>{names.get(value) ?? "Niet meer ingeschreven"}</option>
-                    )}
-                    {options.map((o) => (
-                      <option key={o.member_id} value={o.member_id}>
-                        {o.name}
-                        {o.reserve ? " (reserve)" : ""}
-                        {matchCount.get(o.member_id) ? ` · ${matchCount.get(o.member_id)}×` : ""}
-                      </option>
-                    ))}
-                  </select>
-                );
-              };
-              return (
-                <fieldset key={key} className="rounded-lg border border-stone-200 p-3">
-                  <legend className="px-1 text-sm font-medium text-stone-700">{label}</legend>
-                  <div className="grid grid-cols-1 items-center gap-2 sm:grid-cols-[1fr_auto_1fr]">
-                    <div className="space-y-2">
-                      {select(0)}
-                      {select(1)}
-                    </div>
-                    <span className="text-center text-sm text-stone-500">tegen</span>
-                    <div className="space-y-2">
-                      {select(2)}
-                      {select(3)}
-                    </div>
-                  </div>
-                </fieldset>
-              );
-            })}
+      {shownSports.map((sport) => {
+        const setup = setups[sport];
+        if (setup.slots === 0 || setup.courts === 0) return null;
+        return (
+          <div key={sport} className="space-y-3">
+            <h2 className="pt-2 text-xl font-bold text-stone-900">{sportLabel(sport)}</h2>
+            {range(setup.slots).map((slot) => (
+              <Card key={slot}>
+                <Field label={`Tijdsslot ${slot}`} hint="Bv. 14:00 of Ronde 1. Leeg laten mag.">
+                  <input
+                    value={setup.labels[slot - 1] ?? ""}
+                    onChange={(e) => {
+                      const labels = [...setup.labels];
+                      while (labels.length < slot) labels.push("");
+                      labels[slot - 1] = e.target.value;
+                      setSetup(sport, { labels });
+                    }}
+                    placeholder={`Ronde ${slot}`}
+                    maxLength={40}
+                    className={inputClass}
+                  />
+                </Field>
+                <div className="mt-3 space-y-3">
+                  {range(setup.courts).map((court) => {
+                    const key = matchKey({ slot, sport, court });
+                    const label = courtLabel(sport, court);
+                    const p = places[key] ?? EMPTY;
+                    const select = (index: number) => {
+                      const value = p[index];
+                      const clash = value && doubleBooked.has(`${sport}-${slot}-${value}`);
+                      const options = players[sport];
+                      return (
+                        <select
+                          aria-label={`${label}, ${index < 2 ? "ploeg 1" : "ploeg 2"}, speler ${(index % 2) + 1}`}
+                          value={value}
+                          onChange={(e) => setPlace(key, index, e.target.value)}
+                          className={`${inputClass} !mt-0 ${clash ? "!border-red-500 !bg-red-50" : ""}`}
+                        >
+                          <option value="">
+                            {index % 2 === 0 || sport === "padel" ? "Speler…" : "(geen 2de speler)"}
+                          </option>
+                          {value && !options.some((o) => o.member_id === value) && (
+                            <option value={value}>{names.get(value) ?? "Niet meer ingeschreven"}</option>
+                          )}
+                          {options.map((o) => {
+                            const n = matchCount.get(`${sport}-${o.member_id}`);
+                            return (
+                              <option key={o.member_id} value={o.member_id}>
+                                {o.name}
+                                {o.reserve ? " (reserve)" : ""}
+                                {n ? ` · ${n}×` : ""}
+                              </option>
+                            );
+                          })}
+                        </select>
+                      );
+                    };
+                    return (
+                      <fieldset key={key} className="rounded-lg border border-stone-200 p-3">
+                        <legend className="px-1 text-sm font-medium text-stone-700">{label}</legend>
+                        <div className="grid grid-cols-1 items-center gap-2 sm:grid-cols-[1fr_auto_1fr]">
+                          <div className="space-y-2">
+                            {select(0)}
+                            {select(1)}
+                          </div>
+                          <span className="text-center text-sm text-stone-500">tegen</span>
+                          <div className="space-y-2">
+                            {select(2)}
+                            {select(3)}
+                          </div>
+                        </div>
+                      </fieldset>
+                    );
+                  })}
+                </div>
+                {[...doubleBooked].some((d) => d.startsWith(`${sport}-${slot}-`)) && (
+                  <p className="mt-2 text-sm text-red-700">Iemand staat twee keer in dit tijdsslot.</p>
+                )}
+              </Card>
+            ))}
           </div>
-          {[...doubleBooked].some((d) => d.startsWith(`${slot}-`)) && (
-            <p className="mt-2 text-sm text-red-700">Iemand staat twee keer in dit tijdsslot.</p>
-          )}
-        </Card>
-      ))}
+        );
+      })}
 
       <Overview players={players} sports={sports} matchCount={matchCount} />
 
@@ -272,7 +305,7 @@ export function PlanningEditor({
   );
 }
 
-// How many matches every registered player has, so nobody is forgotten.
+// How many matches every registered player has per sport, so nobody is forgotten.
 function Overview({
   players,
   sports,
@@ -293,7 +326,7 @@ function Overview({
           ) : (
             <ul className="mt-1 flex flex-wrap gap-1.5">
               {players[sport].map((p) => {
-                const n = matchCount.get(p.member_id) ?? 0;
+                const n = matchCount.get(`${sport}-${p.member_id}`) ?? 0;
                 return (
                   <li
                     key={p.member_id}

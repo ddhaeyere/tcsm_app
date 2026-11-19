@@ -50,7 +50,7 @@ export default async function EventPage({
         .order("first_name"),
       supabase
         .from("event_plannings")
-        .select("event_id, slots, tennis_courts, padel_courts, slot_labels, released_at, updated_at")
+        .select("event_id, tennis_slots, padel_slots, tennis_courts, padel_courts, tennis_slot_labels, padel_slot_labels, released_at, updated_at")
         .eq("event_id", id)
         .maybeSingle(),
       supabase

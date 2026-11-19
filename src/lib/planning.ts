@@ -2,26 +2,29 @@ import { sportLabel } from "./format";
 import { offersSport, sportLists } from "./registrations";
 import type { ClubEvent, EventPlanning, PlanningMatch, Sport } from "./types";
 
-export interface Court {
-  sport: Sport;
-  court: number;
-  label: string;
+// The planning settings of one sport: time slots, slot names and courts.
+export interface SportSetup {
+  slots: number;
+  courts: number;
+  labels: string[];
 }
 
-// The courts of a planning in display order: tennis first, then padel.
-export function planningCourts(planning: Pick<EventPlanning, "tennis_courts" | "padel_courts">): Court[] {
-  const courts: Court[] = [];
-  for (const [sport, count] of [
-    ["tennis", planning.tennis_courts],
-    ["padel", planning.padel_courts],
-  ] as const)
-    for (let court = 1; court <= count; court++)
-      courts.push({ sport, court, label: `${sportLabel(sport)} ${court}` });
-  return courts;
+export function sportSetup(planning: EventPlanning, sport: Sport): SportSetup {
+  return sport === "tennis"
+    ? { slots: planning.tennis_slots, courts: planning.tennis_courts, labels: planning.tennis_slot_labels }
+    : { slots: planning.padel_slots, courts: planning.padel_courts, labels: planning.padel_slot_labels };
 }
 
-export function slotLabel(planning: Pick<EventPlanning, "slot_labels">, slot: number): string {
-  return planning.slot_labels[slot - 1]?.trim() || `Ronde ${slot}`;
+export function courtLabel(sport: Sport, court: number): string {
+  return `${sportLabel(sport)} ${court}`;
+}
+
+export function slotLabel(labels: string[], slot: number): string {
+  return labels[slot - 1]?.trim() || `Ronde ${slot}`;
+}
+
+export function range(n: number): number[] {
+  return Array.from({ length: n }, (_, i) => i + 1);
 }
 
 export function matchKey(m: Pick<PlanningMatch, "slot" | "sport" | "court">): string {
