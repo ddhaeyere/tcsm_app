@@ -25,6 +25,11 @@ screen. Plan and decisions: [TCSM club app plan](https://claude.ai/code/artifact
   registers for a sport that is full lands on its reserve list, in order of
   registration, and moves up when someone drops out. Everyone sees who plays
   and who eats along. Every registered member with an email address gets a mail.
+- **Planning**: on an event's page, organisers open the Planning tab, set the
+  number of time slots and of tennis and padel courts, and pick by hand who
+  plays whom per slot and court. Only organisers see the planning until they
+  release it; then every member sees it read only (enforced by row level
+  security too).
 - **Motivation**: the event list shows how many players and who already joined.
 
 ## Stack

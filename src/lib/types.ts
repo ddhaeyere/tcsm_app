@@ -73,3 +73,24 @@ export const EVENT_SELECT = `
     member:club_members ( full_name, tennis_singles_ranking, tennis_doubles_ranking, padel_ranking )
   )
 `;
+
+// The planning of an event: who plays whom, per time slot and court.
+export interface EventPlanning {
+  event_id: string;
+  slots: number;
+  tennis_courts: number;
+  padel_courts: number;
+  slot_labels: string[];
+  // Null while only organisers see the planning.
+  released_at: string | null;
+  updated_at: string;
+}
+
+export interface PlanningMatch {
+  slot: number;
+  sport: Sport;
+  court: number;
+  // Member ids, one or two per side.
+  side_a: string[];
+  side_b: string[];
+}
