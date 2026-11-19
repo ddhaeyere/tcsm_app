@@ -77,10 +77,13 @@ export const EVENT_SELECT = `
 // The planning of an event: who plays whom, per time slot and court.
 export interface EventPlanning {
   event_id: string;
-  slots: number;
+  tennis_slots: number;
+  padel_slots: number;
   tennis_courts: number;
   padel_courts: number;
-  slot_labels: string[];
+  // Optional name per time slot, e.g. "14:00"; empty means "Ronde n".
+  tennis_slot_labels: string[];
+  padel_slot_labels: string[];
   // Null while only organisers see the planning.
   released_at: string | null;
   updated_at: string;
