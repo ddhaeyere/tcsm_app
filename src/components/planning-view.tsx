@@ -1,3 +1,4 @@
+import { CourtFrame, CourtRow } from "@/components/court";
 import { Card } from "@/components/ui";
 import { sportLabel } from "@/lib/format";
 import { courtLabel, matchKey, range, slotLabel, sportSetup } from "@/lib/planning";
@@ -65,21 +66,33 @@ export function PlanningView({
             {slots.map(({ slot, rows }) => (
               <Card key={slot}>
                 <h3 className="mb-2 text-lg font-semibold">{slotLabel(setup.labels, slot)}</h3>
-                <ul className="divide-y divide-stone-100">
-                  {rows.map(({ court, match }) => (
-                    <li
-                      key={court}
-                      className={`py-2 text-sm ${mine(match) ? "-mx-2 rounded-lg bg-club-50 px-2" : ""}`}
-                    >
-                      <span className="block text-xs font-medium uppercase tracking-wide text-stone-500">
-                        {courtLabel(sport, court)}
-                      </span>
-                      <span className="text-stone-900">
-                        {side(match.side_a)} <span className="text-stone-500">tegen</span> {side(match.side_b)}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
+                <CourtRow>
+                  {rows.map(({ court, match }) => {
+                    const team = (ids: string[]) =>
+                      ids.length ? (
+                        ids.map((id) => (
+                          <span
+                            key={id}
+                            className={`block truncate rounded px-1.5 py-1 text-sm ${id === myMemberId ? "bg-club-700 font-semibold text-white" : "bg-white/70 text-stone-900"}`}
+                          >
+                            {side([id])}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="px-1.5 text-sm text-stone-400">–</span>
+                      );
+                    return (
+                      <CourtFrame
+                        key={court}
+                        sport={sport}
+                        label={courtLabel(sport, court)}
+                        left={team(match.side_a)}
+                        right={team(match.side_b)}
+                        highlight={mine(match)}
+                      />
+                    );
+                  })}
+                </CourtRow>
               </Card>
             ))}
           </div>
