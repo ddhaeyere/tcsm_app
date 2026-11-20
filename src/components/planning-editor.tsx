@@ -15,14 +15,21 @@ import type { ActionState } from "@/components/forms";
 import { Card, Field, inputClass } from "@/components/ui";
 import { formatDateTime, sportLabel } from "@/lib/format";
 import {
+  QUARTERS,
+  completeTimes,
   courtLabel,
+  findClashes,
+  fromMinutes,
   matchKey,
   range,
+  rankingLabel,
+  sideSum,
   sportSetup,
+  toMinutes,
   type PlanningPlayer,
   type SportSetup,
 } from "@/lib/planning";
-import type { EventPlanning, PlanningMatch, Sport } from "@/lib/types";
+import type { EventPlanning, PlanningMatch, SlotTime, Sport } from "@/lib/types";
 
 // Four places per match: team 1 is 0 and 1, team 2 is 2 and 3. Empty string
 // means nobody.
@@ -48,22 +55,35 @@ export function PlanningEditor({
   matches,
   players,
   sports,
+  defaultStart,
 }: {
   eventId: string;
   planning: EventPlanning | null;
   matches: PlanningMatch[];
   players: Record<Sport, PlanningPlayer[]>;
   sports: Sport[];
+  // Start of the event ("19:00"): the first slot starts here by default.
+  defaultStart: string;
 }) {
   const [setups, setSetups] = useState<Record<Sport, SportSetup>>(() => {
-    const initial = (sport: Sport): SportSetup =>
-      planning
+    const initial = (sport: Sport): SportSetup => {
+      const setup = planning
         ? sportSetup(planning, sport)
         : sports.includes(sport)
-          ? { slots: 4, courts: 2, labels: [] }
-          : { slots: 0, courts: 0, labels: [] };
+          ? { slots: 4, courts: 2, times: [] }
+          : { slots: 0, courts: 0, times: [] };
+      return { ...setup, times: completeTimes(setup.times, setup.slots, defaultStart) };
+    };
     return { tennis: initial("tennis"), padel: initial("padel") };
   });
+  // A planning saved before slots had times gets suggested times: those
+  // still need saving.
+  const missingTimes =
+    planning !== null &&
+    SPORTS.some((sport) => {
+      const { slots, times } = sportSetup(planning, sport);
+      return range(slots).some((i) => !times[i - 1]?.start || !times[i - 1]?.end);
+    });
   const [places, setPlaces] = useState<Record<string, Places>>(() =>
     Object.fromEntries(
       matches.map((m) => [
@@ -72,16 +92,20 @@ export function PlanningEditor({
       ]),
     ),
   );
-  const [dirty, setDirty] = useState(planning === null);
+  const [dirty, setDirty] = useState(planning === null || missingTimes);
   const [pending, startTransition] = useTransition();
   const [result, setResult] = useState<ActionState>({});
   const [selected, setSelected] = useState<Pick | null>(null);
 
   // Sports shown: those the event offers, plus any that still has courts.
   const shownSports = SPORTS.filter((s) => sports.includes(s) || setups[s].courts > 0);
-  const names = useMemo(
-    () => new Map([...players.tennis, ...players.padel].map((p) => [p.member_id, p.name])),
+  const people = useMemo(
+    () => new Map([...players.tennis, ...players.padel].map((p) => [p.member_id, p])),
     [players],
+  );
+  const names = useMemo(
+    () => new Map([...people.values()].map((p) => [p.member_id, p.name])),
+    [people],
   );
 
   const change = (update: () => void) => {
@@ -160,17 +184,12 @@ export function PlanningEditor({
     ),
   );
 
-  // Who is planned twice in the same slot of a sport, and how often everyone plays.
-  const doubleBooked = new Set<string>();
+  // Who stands on two courts at overlapping times (tennis and padel
+  // together), and how often everyone plays over both sports.
+  const clashes = findClashes(currentMatches, setups);
   const matchCount = new Map<string, number>();
-  const seen = new Set<string>();
   for (const m of currentMatches)
-    for (const id of [...m.side_a, ...m.side_b]) {
-      const key = `${m.sport}-${m.slot}-${id}`;
-      if (seen.has(key)) doubleBooked.add(key);
-      seen.add(key);
-      matchCount.set(`${m.sport}-${id}`, (matchCount.get(`${m.sport}-${id}`) ?? 0) + 1);
-    }
+    for (const id of [...m.side_a, ...m.side_b]) matchCount.set(id, (matchCount.get(id) ?? 0) + 1);
 
   const save = () =>
     startTransition(async () => {
@@ -201,11 +220,15 @@ export function PlanningEditor({
         min={0}
         max={field === "slots" ? 50 : 30}
         value={setups[sport][field]}
-        onChange={(e) =>
-          setSetup(sport, {
-            [field]: Math.max(0, Math.min(field === "slots" ? 50 : 30, Number(e.target.value) || 0)),
-          })
-        }
+        onChange={(e) => {
+          const value = Math.max(0, Math.min(field === "slots" ? 50 : 30, Number(e.target.value) || 0));
+          setSetup(
+            sport,
+            field === "slots"
+              ? { slots: value, times: completeTimes(setups[sport].times, value, defaultStart) }
+              : { courts: value },
+          );
+        }}
         className={inputClass}
       />
     </Field>
@@ -243,7 +266,29 @@ export function PlanningEditor({
           isSelected ? "border-club-700 bg-club-700 text-white" : "border-stone-300 bg-white text-stone-800"
         } ${isDragged ? "opacity-40" : ""} ${extra}`}
       >
-        {names.get(memberId) ?? "Niet meer ingeschreven"}
+        <span className="truncate">{names.get(memberId) ?? "Niet meer ingeschreven"}</span>
+        {rankingLabel(people.get(memberId), sport) && (
+          <span className={`shrink-0 font-normal ${isSelected ? "text-club-100" : "text-stone-500"}`}>
+            {rankingLabel(people.get(memberId), sport)}
+          </span>
+        )}
+      </span>
+    );
+  };
+
+  // The sum of the rankings of one side, shown under that side.
+  const sum = (sport: Sport, ids: string[]) => {
+    const present = ids.filter(Boolean);
+    if (present.length === 0) return <span key="sum" className="h-4" />;
+    const { sum: total, missing } = sideSum(present.map((id) => people.get(id)), sport);
+    return (
+      <span
+        key="sum"
+        className="px-1 text-right text-[11px] font-semibold text-stone-600"
+        title={missing ? `${missing} speler(s) zonder klassement` : undefined}
+      >
+        Σ {total}
+        {missing ? " +?" : ""}
       </span>
     );
   };
@@ -304,9 +349,9 @@ export function PlanningEditor({
             <h2 className="pt-2 text-xl font-bold text-stone-900">{sportLabel(sport)}</h2>
 
             <p className="text-sm text-stone-600">
-              Sleep een naam naar een kant van een terrein, of tik een naam en dan een plaats. Het getal
-              toont hoe vaak iemand al speelt. Een naam terug naar de lijst slepen haalt hem van het
-              terrein.
+              Sleep een naam naar een kant van een terrein, of tik een naam en dan een plaats. Naast de
+              naam staat het klassement, erachter hoe vaak iemand al speelt (tennis en padel samen). Een
+              naam terug naar de lijst slepen haalt hem van het terrein.
             </p>
             <div
               data-drop={`list:${sport}`}
@@ -317,7 +362,7 @@ export function PlanningEditor({
               ) : (
                 <ul className="flex max-h-28 flex-wrap gap-1.5 overflow-y-auto">
                   {players[sport].map((p) => {
-                    const n = matchCount.get(`${sport}-${p.member_id}`) ?? 0;
+                    const n = matchCount.get(p.member_id) ?? 0;
                     return (
                       <li key={p.member_id} className="flex items-center">
                         {chip(sport, p.member_id, null, n === 0 ? "!border-amber-300 !bg-amber-50" : "")}
@@ -336,24 +381,16 @@ export function PlanningEditor({
 
             {range(setup.slots).map((slot) => (
               <Card key={slot}>
-                <div className="mb-3 flex items-center gap-2">
-                  <label className="shrink-0 text-sm font-semibold text-stone-800" htmlFor={`label-${sport}-${slot}`}>
-                    Tijdsslot {slot}
-                  </label>
-                  <input
-                    id={`label-${sport}-${slot}`}
-                    value={setup.labels[slot - 1] ?? ""}
-                    onChange={(e) => {
-                      const labels = [...setup.labels];
-                      while (labels.length < slot) labels.push("");
-                      labels[slot - 1] = e.target.value;
-                      setSetup(sport, { labels });
-                    }}
-                    placeholder="bv. 14:00"
-                    maxLength={40}
-                    className={`${inputClass} !mt-0 !py-1.5`}
-                  />
-                </div>
+                <SlotTimes
+                  sport={sport}
+                  slot={slot}
+                  time={setup.times[slot - 1] ?? { start: null, end: null }}
+                  onChange={(time) => {
+                    const times = [...setup.times];
+                    times[slot - 1] = time;
+                    setSetup(sport, { times });
+                  }}
+                />
                 <CourtRow>
                   {range(setup.courts).map((court) => {
                     const key = matchKey({ slot, sport, court });
@@ -362,7 +399,7 @@ export function PlanningEditor({
                     const spot = (index: number) => {
                       const occupant = p[index];
                       const optional = sport === "tennis" && index % 2 === 1;
-                      const clash = occupant && doubleBooked.has(`${sport}-${slot}-${occupant}`);
+                      const clash = occupant && clashes.has(`${key}|${occupant}`);
                       const target = dragging?.sport === sport || (selected?.sport === sport && !occupant);
                       return (
                         <div
@@ -404,8 +441,8 @@ export function PlanningEditor({
                         key={key}
                         sport={sport}
                         label={courtLabel(sport, court)}
-                        left={[spot(0), spot(1)]}
-                        right={[spot(2), spot(3)]}
+                        left={[spot(0), spot(1), sum(sport, [p[0], p[1]])]}
+                        right={[spot(2), spot(3), sum(sport, [p[2], p[3]])]}
                         note={
                           sport === "padel" && filled > 0 && filled < 4 ? (
                             <span className="text-[11px] text-amber-700">{filled}/4</span>
@@ -415,9 +452,22 @@ export function PlanningEditor({
                     );
                   })}
                 </CourtRow>
-                {[...doubleBooked].some((d) => d.startsWith(`${sport}-${slot}-`)) && (
-                  <p className="mt-1 text-sm text-red-700">Iemand staat twee keer in dit tijdsslot.</p>
-                )}
+                {(() => {
+                  const busy = [
+                    ...new Set(
+                      range(setup.courts).flatMap((court) => {
+                        const key = matchKey({ slot, sport, court });
+                        return (places[key] ?? EMPTY).filter((id) => id && clashes.has(`${key}|${id}`));
+                      }),
+                    ),
+                  ];
+                  return busy.length > 0 ? (
+                    <p className="mt-1 text-sm text-red-700">
+                      {busy.map((id) => names.get(id) ?? "Iemand").join(", ")}{" "}
+                      {busy.length === 1 ? "staat" : "staan"} op hetzelfde moment op een ander terrein.
+                    </p>
+                  ) : null;
+                })()}
               </Card>
             ))}
           </section>
@@ -528,4 +578,50 @@ function usePointerDrag(
   }, [onDrop, setSelected]);
 
   return { dragging, startDrag };
+}
+
+// Start and end of a time slot, per quarter of an hour. Moving the start
+// keeps the length of the slot.
+function SlotTimes({
+  sport,
+  slot,
+  time,
+  onChange,
+}: {
+  sport: Sport;
+  slot: number;
+  time: SlotTime;
+  onChange: (time: SlotTime) => void;
+}) {
+  const wrong = !time.start || !time.end || time.end <= time.start;
+  const select = (field: "start" | "end") => (
+    <select
+      aria-label={`${sportLabel(sport)}, tijdsslot ${slot}, ${field === "start" ? "beginuur" : "einduur"}`}
+      value={time[field] ?? ""}
+      onChange={(e) => {
+        const value = e.target.value || null;
+        if (field === "start" && value && time.start && time.end) {
+          const length = toMinutes(time.end) - toMinutes(time.start);
+          onChange({ start: value, end: fromMinutes(toMinutes(value) + Math.max(15, length)) });
+        } else onChange({ ...time, [field]: value });
+      }}
+      className={`${inputClass} !mt-0 !w-auto !py-1.5 ${wrong ? "!border-red-500" : ""}`}
+    >
+      <option value="">--:--</option>
+      {QUARTERS.map((q) => (
+        <option key={q} value={q}>
+          {q}
+        </option>
+      ))}
+    </select>
+  );
+  return (
+    <div className="mb-3 flex flex-wrap items-center gap-2">
+      <span className="text-sm font-semibold text-stone-800">Tijdsslot {slot}</span>
+      {select("start")}
+      <span className="text-sm text-stone-500">tot</span>
+      {select("end")}
+      {wrong && <span className="text-xs text-red-700">Kies een beginuur en een later einduur.</span>}
+    </div>
+  );
 }

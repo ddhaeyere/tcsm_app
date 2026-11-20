@@ -24,12 +24,12 @@ export function CourtFrame({
       ? "border-orange-300 bg-orange-50"
       : "border-sky-300 bg-sky-50";
   return (
-    <div className={`w-72 shrink-0 snap-start rounded-lg border-2 ${colours} ${highlight ? "ring-2 ring-club-600" : ""}`}>
+    <div className={`w-[21rem] max-w-[85vw] shrink-0 snap-start rounded-lg border-2 ${colours} ${highlight ? "ring-2 ring-club-600" : ""}`}>
       <div className="flex items-baseline justify-between px-2 pt-1">
         <span className="text-xs font-semibold uppercase tracking-wide text-stone-600">{label}</span>
         {note}
       </div>
-      <div className="grid grid-cols-[1fr_auto_1fr] items-stretch gap-1 p-2">
+      <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-stretch gap-1 p-2">
         <div className="flex flex-col justify-center gap-1.5">{left}</div>
         <div className="w-0.5 rounded bg-stone-400" aria-hidden />
         <div className="flex flex-col justify-center gap-1.5">{right}</div>
