@@ -14,7 +14,7 @@ import {
   isRegistrationOpen,
   registrationClosesAt,
 } from "@/lib/format";
-import { plannablePlayers } from "@/lib/planning";
+import { eventStartTime, plannablePlayers } from "@/lib/planning";
 import { SPORTS, describeChoice, offersSport, reservePlace } from "@/lib/registrations";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -50,7 +50,7 @@ export default async function EventPage({
         .order("first_name"),
       supabase
         .from("event_plannings")
-        .select("event_id, tennis_slots, padel_slots, tennis_courts, padel_courts, tennis_slot_labels, padel_slot_labels, released_at, updated_at")
+        .select("event_id, tennis_slots, padel_slots, tennis_courts, padel_courts, tennis_slot_times, padel_slot_times, released_at, updated_at")
         .eq("event_id", id)
         .maybeSingle(),
       supabase
@@ -164,13 +164,14 @@ export default async function EventPage({
           matches={matches}
           players={plannablePlayers(event)}
           sports={SPORTS.filter((s) => offersSport(event, s))}
+          defaultStart={eventStartTime(event.starts_at)}
         />
       ) : (
         planning && (
           <PlanningView
             planning={planning}
             matches={matches}
-            names={new Map(members.map((m) => [m.id, m.full_name]))}
+            people={new Map(members.map((m) => [m.id, m]))}
             myMemberId={me?.id ?? null}
           />
         )

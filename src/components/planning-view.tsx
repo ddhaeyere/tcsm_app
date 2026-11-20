@@ -1,7 +1,16 @@
 import { CourtFrame, CourtRow } from "@/components/court";
 import { Card } from "@/components/ui";
 import { sportLabel } from "@/lib/format";
-import { courtLabel, matchKey, range, slotLabel, sportSetup } from "@/lib/planning";
+import {
+  courtLabel,
+  matchKey,
+  range,
+  rankingLabel,
+  slotLabel,
+  sportSetup,
+  toMinutes,
+  type PlayerRankings,
+} from "@/lib/planning";
 import { SPORTS } from "@/lib/registrations";
 import type { EventPlanning, PlanningMatch } from "@/lib/types";
 
@@ -10,21 +19,25 @@ import type { EventPlanning, PlanningMatch } from "@/lib/types";
 export function PlanningView({
   planning,
   matches,
-  names,
+  people,
   myMemberId,
 }: {
   planning: EventPlanning;
   matches: PlanningMatch[];
-  names: Map<string, string>;
+  people: Map<string, PlayerRankings & { full_name: string }>;
   myMemberId: string | null;
 }) {
   const byKey = new Map(matches.map((m) => [matchKey(m), m]));
-  const side = (ids: string[]) => ids.map((id) => names.get(id) ?? "Onbekend").join(" & ") || "–";
+  const side = (ids: string[]) => ids.map((id) => people.get(id)?.full_name ?? "Onbekend").join(" & ") || "–";
+  const start = (m: PlanningMatch) => {
+    const t = sportSetup(planning, m.sport).times[m.slot - 1]?.start;
+    return t ? toMinutes(t) : m.slot * 10000;
+  };
   const mine = (m: PlanningMatch) => !!myMemberId && [...m.side_a, ...m.side_b].includes(myMemberId);
   const myMatches = matches
     .filter(mine)
-    .sort((a, b) => SPORTS.indexOf(a.sport) - SPORTS.indexOf(b.sport) || a.slot - b.slot);
-  const label = (m: PlanningMatch) => slotLabel(sportSetup(planning, m.sport).labels, m.slot);
+    .sort((a, b) => start(a) - start(b) || SPORTS.indexOf(a.sport) - SPORTS.indexOf(b.sport));
+  const label = (m: PlanningMatch) => slotLabel(sportSetup(planning, m.sport).times, m.slot);
 
   if (matches.length === 0)
     return (
@@ -65,7 +78,7 @@ export function PlanningView({
             <h2 className="text-xl font-bold text-stone-900">{sportLabel(sport)}</h2>
             {slots.map(({ slot, rows }) => (
               <Card key={slot}>
-                <h3 className="mb-2 text-lg font-semibold">{slotLabel(setup.labels, slot)}</h3>
+                <h3 className="mb-2 text-lg font-semibold">{slotLabel(setup.times, slot)}</h3>
                 <CourtRow>
                   {rows.map(({ court, match }) => {
                     const team = (ids: string[]) =>
@@ -76,6 +89,11 @@ export function PlanningView({
                             className={`block truncate rounded px-1.5 py-1 text-sm ${id === myMemberId ? "bg-club-700 font-semibold text-white" : "bg-white/70 text-stone-900"}`}
                           >
                             {side([id])}
+                            {rankingLabel(people.get(id), sport) && (
+                              <span className="ml-1 text-xs font-normal opacity-70">
+                                {rankingLabel(people.get(id), sport)}
+                              </span>
+                            )}
                           </span>
                         ))
                       ) : (

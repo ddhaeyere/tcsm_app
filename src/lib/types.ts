@@ -81,12 +81,17 @@ export interface EventPlanning {
   padel_slots: number;
   tennis_courts: number;
   padel_courts: number;
-  // Optional name per time slot, e.g. "14:00"; empty means "Ronde n".
-  tennis_slot_labels: string[];
-  padel_slot_labels: string[];
+  // Start and end ("19:15") of every time slot, one entry per slot.
+  tennis_slot_times: SlotTime[];
+  padel_slot_times: SlotTime[];
   // Null while only organisers see the planning.
   released_at: string | null;
   updated_at: string;
+}
+
+export interface SlotTime {
+  start: string | null;
+  end: string | null;
 }
 
 export interface PlanningMatch {
